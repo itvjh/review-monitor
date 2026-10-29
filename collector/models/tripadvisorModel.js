@@ -53,26 +53,28 @@ async function openRow(page, row) {
   }, row.name);
 }
 
-// Up to `limit` reviews NOT in `known`, newest first. Stops when a whole page holds nothing new.
-async function readProperty(page, biz, limit, known, problems) {
+// Up to `limit` reviews NOT in `known`, newest first. The list is in time order, so after `stopAfterKnown` known rows in a row nothing newer can follow.
+async function readProperty(page, biz, { limit, stopAfterKnown, known }, problems) {
   const reviews = [];
   if (!(await Mc.openList(page, biz.business_identifier))) return reviews;
-  const seen = new Set();
-  for (let p = 0; p < MAX_PAGES && reviews.length < limit; p++) {
-    let fresh = 0;
+  const nthOf = new Map(); // identical reviews in one list: the top one keeps the plain key, the next ones get #2, #3...
+  let knownRun = 0;
+  for (let p = 0; p < MAX_PAGES; p++) {
     for (const row of await Mc.readRows(page)) {
       if (!row.title || !row.rating) throw new CodedError('SELECTOR_CHANGED', `unreadable Tripadvisor row in ${biz.business_name}`);
-      const hash = contentHash({ business: biz.business_identifier, title: row.title, rating: row.rating, body: row.excerpt });
-      if (known.has(hash)) continue;
-      fresh++;
-      if (seen.has(hash) || reviews.length >= limit) continue; // identical title+stars+text start: counted once
-      seen.add(hash);
+      const key = { business: biz.business_identifier, title: row.title, rating: row.rating, body: row.excerpt };
+      const base = contentHash(key);
+      const nth = (nthOf.get(base) || 0) + 1;
+      nthOf.set(base, nth);
+      const hash = nth === 1 ? base : contentHash({ ...key, nth });
+      if (known.has(hash)) { if (++knownRun >= stopAfterKnown) return reviews; continue; }
+      knownRun = 0;
+
       const lines = await openRow(page, row);
       const opened = lines && parseOpened(lines, row.title);
       const cut = row.excerpt.replace(/(…|\.{3})$/, '').trim();
       if (!opened || opened.review_text.length < cut.length) { // never save a half-read review: it is read again next run
         problems.push(biz.business_name + ': không đọc được đủ nội dung của review "' + row.title.slice(0, 40) + '", sẽ thử lại lần sau');
-        seen.delete(hash);
         continue;
       }
       const date_text = opened.date_text || row.date_text;
@@ -90,8 +92,8 @@ async function readProperty(page, biz, limit, known, problems) {
         review_url: Mc.MC_URL(biz.business_identifier),
         review_hash: hash,
       });
+      if (reviews.length >= limit) return reviews;
     }
-    if (!fresh || reviews.length >= limit) break; // nothing new on this page: older pages hold nothing newer
     await pause(page);
     if (!(await Mc.nextPage(page))) break;
   }
@@ -100,7 +102,7 @@ async function readProperty(page, biz, limit, known, problems) {
 
 // One browser session: every property in turn, up to `limit` NEW reviews EACH. A failing property is reported in `errors`
 // and does not stop the others.
-exports.read = async (page, { limit, known }) => {
+exports.read = async (page, { limit, stopAfterKnown = 10, known }) => {
   const knownSet = new Set(known);
   const businesses = await exports.listBusinesses(page);
   const reviews = [];
@@ -108,7 +110,7 @@ exports.read = async (page, { limit, known }) => {
   for (const biz of businesses) {
     const problems = []; // reviews that could not be read completely: reported as REVIEWS_PARTIAL, not saved half-read
     try {
-      reviews.push(...(await readProperty(page, biz, limit, knownSet, problems)));
+      reviews.push(...(await readProperty(page, biz, { limit, stopAfterKnown, known: knownSet }, problems)));
       for (const msg of problems) errors.push({ business: biz.business_identifier, error_code: 'REVIEWS_PARTIAL', error_message: msg });
     } catch (e) {
       if (e.code === 'AUTH_REQUIRED') throw e; // blocked or logged out: stop everything, do not keep hitting the site

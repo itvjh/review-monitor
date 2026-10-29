@@ -21,7 +21,7 @@ function normalizeDate(text, now = new Date()) {
     else if (u === 'w') d.setDate(d.getDate() - 7 * n);
     else if (u === 'M') d.setMonth(d.getMonth() - n);
     else d.setFullYear(d.getFullYear() - n);
-    return d.toISOString().slice(0, 10);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; // local day, not UTC
   }
   const iso = t.match(/\d{4}-\d{2}-\d{2}/);
   if (iso) return iso[0];

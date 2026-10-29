@@ -501,25 +501,12 @@
       "onError": "continueRegularOutput"
     },
     {
-      "id": "reply-module-disabled-v2-",
-      "name": "Reply Module (disabled, v2)",
-      "type": "n8n-nodes-base.noOp",
-      "typeVersion": 1,
-      "position": [
-        1880,
-        460
-      ],
-      "parameters": {},
-      "disabled": true,
-      "notes": "Future: Generate Reply -> Approval -> Post Reply. Not wired in V1 on purpose."
-    },
-    {
       "id": "run-summary",
       "name": "Run Summary",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        2120,
+        1880,
         460
       ],
       "parameters": {
@@ -532,7 +519,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        2360,
+        2120,
         460
       ],
       "parameters": {
@@ -796,11 +783,6 @@
     "Save Review": {
       "main": [
         [
-          {
-            "node": "Reply Module (disabled, v2)",
-            "type": "main",
-            "index": 0
-          },
           {
             "node": "Review Loop",
             "type": "main",

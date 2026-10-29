@@ -1,6 +1,7 @@
 // Shared access to the Tripadvisor owner's Management Center review list ("Đánh giá > Tất cả đánh giá"):
 // newest first, every language, 30 rows per page, exact reply state. Used to read new reviews and to post replies.
 const { CodedError } = require('./errors');
+const { parseRowLines } = require('./tripadvisorParse');
 
 const MC_URL = (locationId) => `https://www.tripadvisor.com.vn/reviews?locationId=${locationId}&screen=allreviews`;
 const BUBBLES = 'svg[data-automation="bubbleRatingImage"]';
@@ -25,24 +26,15 @@ async function openList(page, locationId) {
   return true;
 }
 
-// The rows on screen, each tagged data-mc-row=<index> so callers can click them. Row text lines:
-// [reviewer, date, (property name: attractions only), title, excerpt (cut with an ellipsis), "Đã đăng phản hồi" / "Phản hồi đang chờ xử lý" when answered],
-// so the title and the excerpt are the last two lines once the "answered" marker is dropped.
-const readRows = (page) => page.evaluate((bubbles) => {
-  const squash = (s) => s.normalize('NFC').replace(/\s+/g, ' ').trim();
-  return [...document.querySelectorAll('button')].filter((b) => b.querySelector(bubbles)).map((b, i) => {
+// The rows on screen, each tagged data-mc-row=<index> so callers can click them (see parseRowLines for the row text).
+const readRows = async (page) => {
+  const raw = await page.evaluate((bubbles) => [...document.querySelectorAll('button')].filter((b) => b.querySelector(bubbles)).map((b, i) => {
     b.setAttribute('data-mc-row', String(i));
-    const lines = b.innerText.split('\n').map(squash).filter(Boolean);
     const t = b.querySelector(bubbles + ' title');
-    const m = squash((t && t.textContent) || '').match(/(\d)/);
-    const isStatus = (l) => /^(đã đăng phản hồi|phản hồi đang chờ xử lý)$/i.test(l); // answered, or our reply waits for Tripadvisor's moderation
-    const replied = lines.some(isStatus);
-    const pending = lines.some((l) => /^phản hồi đang chờ xử lý$/i.test(l));
-    const content = lines.slice(2).filter((l) => !isStatus(l));
-    const two = content.length >= 2;
-    return { index: i, name: lines[0] || '', date_text: lines[1] || '', title: (two ? content[content.length - 2] : content[0]) || '', excerpt: two ? content[content.length - 1] : '', rating: m ? Number(m[1]) : 0, replied, pending };
-  });
-}, BUBBLES);
+    return { index: i, lines: b.innerText.split('\n'), ratingText: (t && t.textContent) || '' };
+  }), BUBBLES);
+  return raw.map((r) => ({ index: r.index, ...parseRowLines(r.lines, r.ratingText) }));
+};
 
 // Clicks "next page" and waits for the list to change. False on the last page.
 async function nextPage(page) {

@@ -1,16 +1,13 @@
 // Posts ONE approved reply to ONE review through the Google UI. The only write the collector can do; see replyPolicy.js for the gate.
 // Safety: find the card by Google's own review id, check it is the expected business + reviewer and still unanswered,
 // refuse anything ambiguous, and in live mode confirm after a page RELOAD that the reply really is on Google.
-const fs = require('fs');
-const path = require('path');
-const cfg = require('../config');
 const SEL = require('./selectors');
 const { CodedError } = require('./errors');
 const { isAuthPage, setMaxRows, goNext } = require('./browser');
 const { sameName } = require('./replyPolicy');
+const { squash, screenshot } = require('./util');
 
 const TAG = 'data-gbp-target';
-const squash = (s) => String(s || '').replace(/\s+/g, ' ').trim();
 
 // Marks the card of review `id` with a temporary attribute and describes it; null when it is not on this page.
 const tagCard = (page, id) => page.$$eval(SEL.card, (els, a) => {
@@ -49,12 +46,7 @@ async function locate(page, reviewId, maxPages) {
   return null;
 }
 
-const shot = async (page, label) => {
-  fs.mkdirSync(cfg.SHOTS, { recursive: true });
-  const file = path.join(cfg.SHOTS, `${Date.now()}-reply-${label}.png`);
-  await page.screenshot({ path: file, fullPage: true }).catch(() => {});
-  return file;
-};
+const shot = (page, label) => screenshot(page, 'reply-' + label);
 
 exports.post = async (page, { reviewId, businessIdentifier, reviewerName, text, dryRun }) => {
   const head = squash(text).slice(0, 30);

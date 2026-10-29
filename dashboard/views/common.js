@@ -5,11 +5,7 @@ const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls)
 // { role: 'moderator' (the owner's machine) | 'viewer' (read-only), posting: 'off' | 'dry-run' | 'live' }. The server enforces it; this only hides buttons.
 const whoAmI = fetch('/api/me').then((r) => r.json()).catch(() => ({ role: 'viewer', posting: 'off' }));
 
-// Platforms the dashboard knows. `login` is the command that renews that platform's saved sign-in.
-const PLATFORMS = {
-  google: { name: 'Google', login: 'npm run login' },
-  tripadvisor: { name: 'Tripadvisor', login: 'npm run login -- tripadvisor' },
-};
+// PLATFORMS (name, colour, login command, owner page, autoReply) comes from /platforms.js, i.e. from config/platforms.js.
 const platformName = (p) => (PLATFORMS[p] ? PLATFORMS[p].name : p || 'Google');
 const platformBadge = (p) => el('span', 'badge ' + (PLATFORMS[p] ? p : 'google'), platformName(p));
 

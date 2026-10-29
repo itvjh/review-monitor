@@ -1,9 +1,11 @@
 // Shared .env loader (single source of configuration for dashboard, collector tooling and scripts).
-const fs = require('fs');
+// Node's own parser handles quotes and comments; a variable already set in the system wins over the file.
 const path = require('path');
 
-module.exports = Object.fromEntries(
-  fs.readFileSync(path.join(__dirname, '..', '.env'), 'utf8').split(/\r?\n/)
-    .filter((l) => l.trim() && !l.startsWith('#') && l.includes('='))
-    .map((l) => [l.slice(0, l.indexOf('=')).trim(), l.slice(l.indexOf('=') + 1).trim()]),
-);
+const file = path.join(__dirname, '..', '.env');
+try { process.loadEnvFile(file); } catch (e) {
+  if (e.code === 'ENOENT') throw new Error(`Thiếu file ${file}. Sao chép .env.example thành .env rồi điền khóa.`);
+  throw e;
+}
+
+module.exports = process.env;

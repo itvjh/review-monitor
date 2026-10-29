@@ -54,3 +54,13 @@ const call = (s, method, path, body) => fetch(`http://127.0.0.1:${s.address().po
   col.close();
   console.log('http layers ok');
 })().catch((e) => { console.error(e); process.exit(1); });
+
+// the collector refuses anything a web page could send: foreign Host, any Origin, writes that are not declared JSON
+const guard = require('../collector/models/requestGuard');
+const req = (over) => ({ method: 'POST', headers: { host: '127.0.0.1:3010', 'content-type': 'application/json' }, ...over });
+assert.strictEqual(guard.check(req({})), null);
+assert.strictEqual(guard.check(req({ method: 'GET', headers: { host: 'localhost:3010' } })), null);
+assert.strictEqual(guard.check(req({ headers: { host: 'evil.example.com', 'content-type': 'application/json' } })).code, 403); // DNS rebinding
+assert.strictEqual(guard.check(req({ headers: { host: '127.0.0.1:3010', origin: 'https://evil.example.com', 'content-type': 'application/json' } })).code, 403); // cross-site
+assert.strictEqual(guard.check(req({ headers: { host: '127.0.0.1:3010', 'content-type': 'text/plain' } })).code, 415); // the "simple request" trick
+assert.strictEqual(guard.check(req({ headers: { host: '127.0.0.1:3010' } })).code, 415);

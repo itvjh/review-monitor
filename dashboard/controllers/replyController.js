@@ -14,7 +14,8 @@ const MAX_BULK = 100;
 
 const parse = (body) => { try { return JSON.parse(body || '{}'); } catch (e) { throw new HttpError(400, 'JSON không hợp lệ.'); } };
 const idOf = (input) => { if (!input || !UUID.test(String(input.id))) throw new HttpError(400, 'id không hợp lệ.'); return input.id; };
-const shape = (r) => ({ ...r, text_parts: split(r.review_text), warnings: r.reply_draft ? rules.lint(r.reply_final || r.reply_draft) : [] });
+const bizName = (r) => (r.businesses && r.businesses.business_name) || '';
+const shape = (r) => ({ ...r, text_parts: split(r.review_text), warnings: r.reply_draft ? rules.lint(r.reply_final || r.reply_draft, bizName(r)) : [] });
 
 // The reply columns exist only after migrations 0002/0003: turn the raw database error into an instruction.
 const guarded = (fn) => async (...args) => {
@@ -74,7 +75,7 @@ exports.bulk = guarded(async (req, res, url, body) => {
   const todo = [...ok];
   const worker = async () => { // 4 writes at a time: each one is a pair of 200-300 ms round trips, 100 in a row would take a minute
     for (let i = todo.shift(); i; i = todo.shift()) {
-      try { await Reply.act(i.id, 'approve', i.text); approved.push(i.id); } catch (e) { skipped.push({ id: i.id, reason: e.message }); }
+      try { await Reply.act(i.id, 'approve', i.text, { strict: true }); approved.push(i.id); } catch (e) { skipped.push({ id: i.id, reason: e.message }); }
     }
   };
   await Promise.all([worker(), worker(), worker(), worker()]);

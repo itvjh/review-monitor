@@ -10,6 +10,7 @@ const routes = {
   'GET /api/me': data.me,
   'GET /': page.file('index.html'),
   'GET /replies': page.file('replies.html'),
+  'GET /platforms.js': data.platformsScript,
   'GET /common.js': page.file('common.js'),
   'GET /app.js': page.file('app.js'),
   'GET /replies.js': page.file('replies.js'),

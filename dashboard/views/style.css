@@ -4,8 +4,6 @@
   --bg: #f4f6fb; --surface: #ffffff; --surface-2: #f8fafd; --line: #e3e8f0; --line-strong: #cfd7e4;
   --text: #0f172a; --text-2: #475569; --muted: #64748b;
   --primary: #1f5eff; --primary-700: #1748cc; --primary-50: #eaf0ff;
-  --google: #1a63d6; --google-50: #e7effc;
-  --ta: #00785a; --ta-50: #e0f5ee;
   --danger: #c0271d; --danger-50: #fdeceb; --warn: #8f5200; --warn-50: #fff3d9; --ok: #11713f; --ok-50: #e2f5ea;
   --star: #e08a00;
   --r: 12px; --r-sm: 8px; --r-pill: 999px;
@@ -56,13 +54,10 @@ h2 { font-size: 16px; margin: 0; }
 /* ---------- platform identity ---------- */
 .badge { display: inline-flex; align-items: center; gap: 6px; padding: 2px 9px 2px 7px; border-radius: var(--r-pill); font-size: 12px; font-weight: 600; white-space: nowrap; }
 .badge::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
-.badge.google { color: var(--google); background: var(--google-50); }
-.badge.tripadvisor { color: var(--ta); background: var(--ta-50); }
 
 /* platform status cards */
 .runs { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px; margin-bottom: 20px; }
 .run { background: var(--surface); border: 1px solid var(--line); border-top: 3px solid var(--line-strong); border-radius: var(--r); padding: 14px 16px; box-shadow: var(--shadow); }
-.run.google { border-top-color: var(--google); } .run.tripadvisor { border-top-color: var(--ta); }
 .run-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 6px; }
 .run-line { color: var(--text-2); font-size: 14px; }
 .status { font-size: 12px; font-weight: 700; padding: 2px 8px; border-radius: var(--r-pill); }
@@ -77,7 +72,6 @@ h2 { font-size: 16px; margin: 0; }
 .segmented .count { font-size: 12px; font-weight: 600; color: var(--muted); background: rgba(15, 23, 42, .06); border-radius: var(--r-pill); padding: 0 7px; min-width: 22px; text-align: center; }
 .segmented button[aria-pressed=true] .count { background: var(--primary-50); color: var(--primary); }
 .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
-.dot.google { background: var(--google); } .dot.tripadvisor { background: var(--ta); }
 .platform-tabs { margin-bottom: 16px; }
 
 /* ---------- KPIs + toolbar ---------- */

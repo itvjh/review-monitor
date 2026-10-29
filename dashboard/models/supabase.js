@@ -18,4 +18,11 @@ async function request(method, query, body) {
   }
 }
 
-module.exports = { get: (query) => request('GET', query), patch: (query, body) => request('PATCH', query, body) };
+// Exact number of rows matching `query` (a filter, e.g. "reviews?reply_status=eq.posted"), counted by the database: no row cap, no payload.
+async function count(query) {
+  const r = await fetch(`${env.SUPABASE_URL}/rest/v1/${query}${query.includes('?') ? '&' : '?'}select=id`, { method: 'HEAD', headers: { apikey: env.SUPABASE_KEY, Prefer: 'count=exact' }, signal: AbortSignal.timeout(15000) });
+  if (!r.ok) throw new Error(`Supabase ${r.status}`);
+  return Number((r.headers.get('content-range') || '').split('/')[1]) || 0;
+}
+
+module.exports = { get: (query) => request('GET', query), patch: (query, body) => request('PATCH', query, body), count };

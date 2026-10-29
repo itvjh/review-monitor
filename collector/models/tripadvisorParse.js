@@ -23,7 +23,7 @@ function parseDate(text, now = new Date()) {
   if (m) {
     const y = m[3] ? Number(m[3]) : now.getFullYear();
     const d = iso(y, m[2], m[1]);
-    return !m[3] && d > now.toISOString().slice(0, 10) ? iso(y - 1, m[2], m[1]) : d;
+    return !m[3] && d > iso(now.getFullYear(), now.getMonth() + 1, now.getDate()) ? iso(y - 1, m[2], m[1]) : d; // today in local time
   }
   m = t.match(/thg (\d{1,2}) (\d{4})/);
   return m ? iso(m[2], m[1], 1) : null;
@@ -34,9 +34,11 @@ const norm = (s) => String(s || '').normalize('NFC').replace(/[’‘´`]/g, "'"
 // The Management Center rows carry no review id, so identity is content: property + title + stars + the first 60 characters of the text.
 // The collapsed row shows only the start of the text (cut with an ellipsis), which is why the key stops at 60 characters:
 // the same key comes out of the row, of the opened review and of the full text already stored in the database.
-function contentHash({ business, title, rating, body }) {
+function contentHash({ business, title, rating, body, nth = 1 }) {
   const start = norm(body).replace(/^["'«»]+/, '').replace(/(…|\.{3})$/, '').trim().slice(0, 60); // a leading quote mark is not always shown
-  return crypto.createHash('sha256').update(['tripadvisor', business, 'c', norm(title), rating, start].join('|')).digest('hex');
+  const key = ['tripadvisor', business, 'c', norm(title), rating, start];
+  if (nth > 1) key.push(nth); // the 2nd, 3rd... identical review in one list ("Tốt" / "ok", 5 stars) gets its own key; the 1st keeps the plain one
+  return crypto.createHash('sha256').update(key.join('|')).digest('hex');
 }
 
 // Splits "title\nbody..." (how review_text is stored) into its parts.
@@ -56,4 +58,36 @@ function parseOpened(rawLines, rawTitle) {
   return { review_text: body.join('\n').trim(), date_text: from.replace(/^Đánh giá từ /, '') };
 }
 
-module.exports = { parseDate, contentHash, splitText, parseOpened };
+const squash = (x) => String(x || '').normalize('NFC').replace(/\s+/g, ' ').trim();
+const ANSWERED = /^(đã đăng phản hồi|phản hồi đang chờ xử lý)$/i; // answered, or our reply waits for Tripadvisor's moderation
+const PENDING = /^phản hồi đang chờ xử lý$/i;
+const cutExcerpt = (e) => norm(e).replace(/^["'«»]+/, '').replace(/(…|\.{3})$/, '').trim().slice(0, 60);
+
+// One Management Center list row as text lines: [reviewer, date, (property name: attractions only), title, excerpt cut with an
+// ellipsis, status line when answered]. The title and the excerpt are the last two lines once the status line is dropped.
+function parseRowLines(rawLines, ratingText) {
+  const lines = rawLines.map(squash).filter(Boolean);
+  const content = lines.slice(2).filter((l) => !ANSWERED.test(l));
+  const two = content.length >= 2;
+  const m = squash(ratingText).match(/(\d)/);
+  return {
+    name: lines[0] || '',
+    date_text: lines[1] || '',
+    title: (two ? content[content.length - 2] : content[0]) || '',
+    excerpt: two ? content[content.length - 1] : '',
+    rating: m ? Number(m[1]) : 0,
+    replied: lines.some((l) => ANSWERED.test(l)),
+    pending: lines.some((l) => PENDING.test(l)),
+  };
+}
+
+// The rows that are the review we want to answer: same stars, same title, and the row's cut-off text is the start of our text.
+// The reviewer name only breaks a tie (the list shows the account handle, not always the public display name).
+function matchRow(rows, want) {
+  const body = norm(want.body).replace(/^["'«»]+/, '');
+  let hits = rows.filter((r) => r.rating === want.rating && norm(r.title) === norm(want.title) && (!r.excerpt || body.startsWith(cutExcerpt(r.excerpt))));
+  if (hits.length > 1) hits = hits.filter((r) => norm(r.name).replace(/\s+/g, '') === norm(want.name).replace(/\s+/g, ''));
+  return hits;
+}
+
+module.exports = { parseDate, contentHash, splitText, parseOpened, parseRowLines, matchRow };

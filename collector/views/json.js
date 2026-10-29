@@ -6,6 +6,7 @@ const send = (res, code, body) => {
 
 exports.ok = (res, body) => send(res, 200, { status: 'OK', ...body });
 exports.health = (res, busy = 0) => send(res, 200, { status: 'ok', busy });
+exports.refuse = (res, code, message) => send(res, code, { status: 'ERROR', error_code: 'UNKNOWN_ERROR', error_message: message });
 exports.badRequest = (res, message) => send(res, 400, { status: 'ERROR', error_code: 'UNKNOWN_ERROR', error_message: message });
 exports.notFound = (res) => send(res, 404, { status: 'ERROR', error_code: 'UNKNOWN_ERROR', error_message: 'not found' });
 exports.fail = (res, e) => send(res, 200, {

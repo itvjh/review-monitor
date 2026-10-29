@@ -24,8 +24,11 @@ exports.canDraft = (current) => current === null || current === undefined || ['p
 
 const PROMISES = ['hoàn tiền', 'bồi thường', 'miễn phí', 'giảm giá', 'tặng voucher', 'refund', 'compensat', 'free of charge', 'discount', 'voucher', 'возврат', 'компенсаци', 'бесплатн'];
 
-// level "error" blocks approval; "warn" is shown to the moderator, who decides.
-exports.lint = (text) => {
+// Words of the business name long enough to be a name ("Vistara", "Yzistel", "mini"), lower case.
+const brandWords = (name) => String(name || '').normalize('NFC').toLowerCase().split(/[^\p{L}\p{N}]+/u).filter((w) => w.length >= 4);
+
+// level "error" blocks approval; "warn" is shown to the moderator, who decides. `business` (optional) is the business name the reply signs with.
+exports.lint = (text, business) => {
   const t = String(text || '').trim();
   const out = [];
   if (!t) return [{ level: 'error', message: 'Nội dung trả lời đang trống.' }];
@@ -38,6 +41,8 @@ exports.lint = (text) => {
   const hit = PROMISES.find((p) => low.includes(p));
   if (hit) out.push({ level: 'warn', message: `Có thể đang hứa hoàn tiền/bồi thường/ưu đãi ("${hit}"). Cần có sự đồng ý của quản lý.` });
   if (/\[[^\]]*\]|\{\{|TODO/i.test(t)) out.push({ level: 'warn', message: 'Còn ký tự giữ chỗ như [tên] hoặc {{...}}.' });
+  const words = brandWords(business);
+  if (words.length && !words.some((w) => low.includes(w))) out.push({ level: 'warn', message: 'Không thấy tên cơ sở trong nội dung (chữ ký sai hoặc lạc đề).' });
   return out;
 };
 

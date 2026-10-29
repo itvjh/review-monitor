@@ -7,10 +7,8 @@ const env = require('../config/env');
 
 const read = (dir, file) => fs.readFileSync(path.join(__dirname, dir, file), 'utf8').trim();
 const codeFile = (name, mode) => ({ jsCode: read('code', `${name}.js`), ...(mode ? { mode } : {}) });
-const PLATFORMS = {
-  google: { id: 'gbpReviewMonitor1', name: 'Google Business Profile Review Monitor', file: 'google-reviews.json', cron: '0 9 * * *', businesses: '/businesses', reviews: '/reviews', perRun: 30, perRunNote: 'newest reviews read per run, all businesses together' },
-  tripadvisor: { id: 'tripadvisorReviewMonitor1', name: 'Tripadvisor Review Monitor', file: 'tripadvisor-reviews.json', cron: '30 9 * * *', businesses: '/tripadvisor/businesses', reviews: '/tripadvisor/reviews', perRun: 5, perRunNote: 'NEW (not yet stored) reviews taken per property per run, newest first; raise it once for a backfill' },
-};
+const REGISTRY = require('../config/platforms');
+const PLATFORMS = Object.fromEntries(Object.entries(REGISTRY).map(([id, p]) => [id, p.workflow]));
 const PLATFORM = process.argv[3] || 'google';
 const P = PLATFORMS[PLATFORM];
 if (!P) throw new Error('unknown platform ' + PLATFORM);
@@ -124,7 +122,6 @@ node('Save Review', 'httpRequest', 4.2, {
   jsonBody: "={{ { platform: $json.platform, business_id: $json.business_id, review_hash: $json.review_hash, external_review_id: $json.review_id || null, reviewer_name: $json.reviewer_name, rating: $json.rating, review_text: $json.review_text || '', review_date: $json.review_date || null, review_date_raw: $json.review_date_text || null, owner_reply: $json.owner_reply || null, has_owner_reply: !!$json.has_owner_reply, sentiment: $json.sentiment, sentiment_score: $json.sentiment_score, category: $json.category, priority: $json.priority, requires_attention: $json.requires_attention, summary: $json.summary, suggested_action: $json.suggested_action, language: $json.language, ai_confidence: $json.ai_confidence, reply_draft: $json.reply_draft || null, reply_status: ($json.reply_draft && !$json.has_owner_reply) ? 'pending' : null, raw_data: { key_points: $json.key_points }, collected_at: $json.collected_at, analyzed_at: $json.analyzed_at } }}",
   options: {},
 }, { credentials: SB, alwaysOutputData: true, ...retry });
-node('Reply Module (disabled, v2)', 'noOp', 1, {}, { disabled: true, notes: 'Future: Generate Reply -> Approval -> Post Reply. Not wired in V1 on purpose.' });
 
 // ---------- 4. report ----------
 node('Run Summary', 'code', 2, codeFile('run-summary'));
@@ -157,7 +154,7 @@ const links = [
   ['AI Analysis', 'Validate AI'],
   ['Validate AI', 'AI OK?'],
   ['AI OK?', 'Save Review', 0], ['AI OK?', 'Review Loop', 1],
-  ['Save Review', 'Reply Module (disabled, v2)'], ['Save Review', 'Review Loop'],
+  ['Save Review', 'Review Loop'],
   ['Run Summary', 'Save Run'],
 ];
 const connections = {};

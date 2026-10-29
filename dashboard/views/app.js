@@ -73,7 +73,7 @@ function renderCharts(rows) {
   Chart.defaults.color = token('--muted');
   Chart.defaults.animation = matchMedia('(prefers-reduced-motion: reduce)').matches ? false : { duration: 300 };
   const plats = Object.keys(PLATFORMS).filter((p) => rows.some((r) => platOf(r) === p));
-  const colour = { google: token('--google'), tripadvisor: token('--ta') };
+  const colour = Object.fromEntries(Object.entries(PLATFORMS).map(([id, p]) => [id, p.color]));
   const legend = { position: 'bottom', labels: { boxWidth: 10, boxHeight: 10, usePointStyle: true } };
 
   const days = Number($('days').value) || 14;

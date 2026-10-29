@@ -32,3 +32,10 @@ assert.ok(msgs('We will gladly offer a full refund for your stay with us.').incl
 assert.ok(msgs('Dear [name], thank you very much for your lovely review of us.').includes('warn'));
 assert.ok(!rules.hasError(rules.lint('Cảm ơn quý khách nhiều lắm, hẹn gặp lại.'))); // warnings never block, errors do
 console.log('reply rules ok');
+
+// a reply that never names the business (wrong signature, or steered by the review text) is flagged; naming it is clean
+const signed = ['Kính gửi quý khách An,', '', 'Chúng tôi chân thành cảm ơn quý khách đã dành thời gian để lại đánh giá.', '', 'Trân trọng cảm ơn,', 'Đội ngũ Vistara Gia Lai Sea Hotel'].join(String.fromCharCode(10));
+assert.deepStrictEqual(rules.lint(signed, 'Vistara Gia Lai Sea Hotel'), []);
+assert.ok(rules.lint(signed, 'Yzistel Hoi An').some((w) => w.level === 'warn' && /tên cơ sở/.test(w.message)));
+assert.deepStrictEqual(rules.lint(signed), []); // no business given: nothing to compare with
+assert.deepStrictEqual(rules.lint(signed, 'A B'), []); // a name made only of short words cannot be checked

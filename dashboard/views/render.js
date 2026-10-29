@@ -43,5 +43,14 @@ exports.file = (res, name, req) => serve(req, res, path.join(__dirname, name), T
 exports.vendor = (res, rel, type, req) => serve(req, res, path.join(__dirname, '..', '..', 'node_modules', rel), type, 'public, max-age=86400');
 
 // Errors carrying an HTTP status (HttpError) keep it; anything else is an upstream failure (502).
-exports.error = (res, e) => exports.json(res, e.status || 502, { error: e.message });
+// Messages of HttpError are written for people. Anything else (a database or network error) can carry table names or URLs: log it, say little.
+exports.error = (res, e) => {
+  if (e.status) return exports.json(res, e.status, { error: e.message });
+  console.error('[dashboard]', e.message);
+  exports.json(res, 502, { error: 'Lỗi máy chủ hoặc cơ sở dữ liệu tạm thời. Thử lại sau ít phút (chi tiết ở cửa sổ log).' });
+};
+exports.script = (res, text) => {
+  res.writeHead(200, { 'content-type': 'text/javascript; charset=utf-8', 'cache-control': 'no-cache' });
+  res.end(text);
+};
 exports.notFound = (res) => exports.json(res, 404, { error: 'not found' });

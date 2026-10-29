@@ -4,6 +4,7 @@ const Reply = require('./reply');
 const rules = require('./replyRules');
 const collector = require('./collector');
 const { HttpError } = require('./httpError');
+const platforms = require('../../config/platforms');
 
 const mode = () => (['dry-run', 'live'].includes(env.REPLY_POSTING) ? env.REPLY_POSTING : 'off');
 const DAILY_LIMIT = Number(env.REPLY_DAILY_LIMIT) || 10;
@@ -12,7 +13,7 @@ const inflight = new Set(); // this process only: stops a double click from post
 exports.mode = mode;
 
 // Platforms whose approved replies the queue may post by itself.
-const AUTO_PLATFORMS = ['google', 'tripadvisor'];
+const AUTO_PLATFORMS = Object.keys(platforms).filter((id) => platforms[id].autoReply);
 exports.AUTO_PLATFORMS = AUTO_PLATFORMS;
 
 const startOfToday = () => { const d = new Date(); d.setHours(0, 0, 0, 0); return d.toISOString(); };
@@ -36,8 +37,9 @@ exports.publish = async (id) => {
     if (mode() === 'live' && (await Reply.postedSince(startOfToday())) >= DAILY_LIMIT) {
       throw new HttpError(429, `Đã đạt giới hạn ${DAILY_LIMIT} phản hồi tự đăng mỗi ngày (REPLY_DAILY_LIMIT).`);
     }
+    // retry: markAttempt already counted this attempt, so more than one means an earlier attempt may have posted without telling us
     const payload = tripadvisor
-      ? { business_identifier: biz, reviewer_name: row.reviewer_name, title: String(row.review_text || '').split('\n')[0], body: String(row.review_text || '').split('\n').slice(1).join(' '), rating: row.rating, text, dry_run: mode() !== 'live', deadline: Date.now() + 170000 }
+      ? { business_identifier: biz, reviewer_name: row.reviewer_name, title: String(row.review_text || '').split('\n')[0], body: String(row.review_text || '').split('\n').slice(1).join(' '), rating: row.rating, retry: row.reply_attempts > 1, text, dry_run: mode() !== 'live', deadline: Date.now() + 170000 }
       : { review_id: row.external_review_id, business_identifier: biz, reviewer_name: row.reviewer_name, text, dry_run: mode() !== 'live', deadline: Date.now() + 170000 };
     const out = await collector.postReply(payload, row.platform);
     if (out.status !== 'OK') throw new HttpError(502, `${out.error_code || 'LỖI'}: ${out.error_message || out.status}${out.screenshot ? ` (ảnh: ${out.screenshot})` : ''}`);

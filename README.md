@@ -39,7 +39,8 @@ Mọi lệnh chạy ở thư mục gốc `D:\automation`. PowerShell 5.1 không 
 ## Cấu trúc thư mục (MVC)
 
 ```
-config/env.js            đọc .env, dùng chung (nguồn cấu hình duy nhất)
+config/env.js            đọc .env (bộ đọc có sẵn của Node), dùng chung (nguồn cấu hình duy nhất)
+config/platforms.js      DANH SÁCH NỀN TẢNG (Google, Tripadvisor...): tên, màu, lệnh đăng nhập, trang trả lời tay, tự đăng hay không, workflow n8n
 config/prompts/          prompt dùng chung (reply-rules.txt: quy tắc soạn nội dung trả lời)
 collector/               dịch vụ HTTP đọc Google Business Profile
   server.js              khởi động + bảng route (không có logic)
@@ -60,7 +61,6 @@ workflows/               workflow n8n (sinh ra, không sửa tay)
   google-reviews.json, tripadvisor-reviews.json    FILE SINH RA, đừng sửa trực tiếp
 sql/migrations/          nguồn sự thật của schema (0001_init.sql, ...)
 sql/schema.sql           FILE SINH RA từ migrations
-sql/optional/            SQL không bắt buộc (anon-policies.sql)
 scripts/                 công cụ một lần (build-schema, setup-credentials)
 tests/                   *.test.js, chạy bằng `npm test`
 ```
@@ -91,6 +91,14 @@ http://127.0.0.1:3020/replies. AI soạn bản nháp trả lời bằng **đúng
 - Bảo vệ các thao tác ghi: chỉ nhận `POST application/json`, kiểm tra `Host` (chống DNS rebinding) và `Origin` (chống gửi chéo trang), `id` phải đúng dạng UUID, đổi trạng thái theo kiểu so sánh-rồi-ghi để hai người không ghi đè nhau.
 - **Phải áp dụng migration `sql/migrations/0002_reply_moderation.sql` (dán vào Supabase SQL Editor) TRƯỚC khi import workflow mới**, vì node Save Review ghi các cột mới.
 
+## Thêm một nền tảng mới (Booking.com, Agoda...)
+
+1. Thêm một mục vào `config/platforms.js` (tên, màu, lệnh đăng nhập, `ownerUrl`, `autoReply`, và khối `workflow`: id, giờ chạy cron, route collector, số bài mỗi lượt). Dashboard (nhãn, bộ chuyển nền tảng, biểu đồ, nút "Mở trang quản lý"), hàng đợi đăng và n8n đều đọc từ danh sách này, không cần sửa chỗ khác.
+2. Viết bộ đọc cho collector, theo khuôn của Tripadvisor: `collector/models/<id>Model.js` (`listBusinesses`, `read` trả `{reviews, errors}` cùng dạng với Google), phần phân tích thuần ở `<id>Parse.js` (**có test**, gồm cả hàm chọn đúng dòng review để đăng), và nếu tự đăng được thì `<id>ReplyModel.js`. Dùng lại `replySupport.js` (kiểm tra đầu vào, cổng `REPLY_POSTING`, hạn chót, không retry) và `util.js`.
+3. Thêm route vào `collector/server.js` (`GET /<id>/businesses`, `POST /<id>/reviews`, `POST /<id>/reply`) và một nhánh payload trong `dashboard/models/publish.js`.
+4. Nếu nền tảng không có mã review: dùng khóa nội dung như Tripadvisor (`contentHash`).
+5. `npm run build:workflow`, `npm run import:workflow`, khởi động lại. Để giữ an toàn, đặt `autoReply: false` trong lúc thử: bài đã duyệt chỉ để sao chép và đăng tay.
+
 ## Chia sẻ dashboard trong mạng nội bộ
 
 - Trong `.env` đặt `DASHBOARD_HOST=0.0.0.0` (xóa dòng này để chỉ dùng trên máy của bạn). Khi khởi động, dashboard in ra địa chỉ để gửi cho đồng nghiệp, ví dụ `http://192.168.x.x:3020` (bỏ qua địa chỉ `169.254.x.x`).
@@ -104,6 +112,7 @@ http://127.0.0.1:3020/replies. AI soạn bản nháp trả lời bằng **đúng
 
 Chỉ nội dung **đã duyệt** (tab "Đã duyệt") mới được đăng; đăng là bước cuối của luồng kiểm duyệt, không có đường tắt.
 - `REPLY_POSTING` trong `.env` (cả collector và dashboard phải khởi động lại sau khi đổi): `off` (mặc định, không đăng) | `dry-run` (mở ô trả lời trên Google, điền nội dung, chụp ảnh rồi huỷ; **không bao giờ bấm Đăng**) | `live` (đăng thật). `REPLY_DAILY_LIMIT` (mặc định 10) là số phản hồi tối đa tự đăng mỗi ngày.
+- **Duyệt hàng loạt chặt hơn duyệt từng bài**: bản nháp có *bất kỳ* cảnh báo nào (liên kết, email, số điện thoại, lời hứa, ký tự giữ chỗ, **không thấy tên cơ sở trong nội dung**) đều bị bỏ qua để người đọc. Cảnh báo cuối bắt các bản lạc đề hoặc bị nội dung review dẫn dắt.
 - **Hàng đợi đăng** (`dashboard/models/queue.js`, chỉ chạy khi `REPLY_POSTING=live`): bấm **Duyệt** chỉ đưa bài vào hàng đợi (tab "Đã duyệt" hiện vị trí và giờ dự kiến đăng). Worker trong dashboard đăng **từng bài một, mỗi bài cách nhau `REPLY_GAP_MINUTES` phút (mặc định 5)** để Google không thấy một loạt phản hồi tự động liên tiếp; khoảng cách tính từ lần chạm Google gần nhất, kể cả lần lỗi. Thứ tự: duyệt trước đăng trước. Trạng thái nằm trong database (migration `0003_reply_queue.sql`) nên tắt máy hay khởi động lại không mất hàng đợi. Mỗi bài thử tối đa 3 lần (lần thử được ghi trước khi chạm Google, nên không có vòng lặp thử liên tục); hết lượt thì dừng ở trạng thái lỗi và chờ bấm **Thử lại**. Ở chế độ `live` không có nút đăng tay ngay, mọi bài đi qua hàng đợi.
 - **Duyệt hàng loạt**: ở tab "Chờ duyệt" tick từng bài hoặc "Chọn tất cả" rồi bấm **Duyệt hàng loạt**; nội dung dùng đúng như đang hiển thị trong ô (kể cả đã sửa). Bài có cảnh báo hoặc lỗi từ bộ kiểm duyệt tự động (liên kết, email, số điện thoại, lời hứa hoàn tiền...) **bị bỏ qua** và được liệt kê để bạn xem và duyệt riêng; tối đa 100 bài mỗi lần.
 - Các lớp bảo vệ trong `collector/models/replyModel.js`: tìm thẻ review theo mã review của Google (không theo vị trí); phải khớp mã doanh nghiệp và tên người đánh giá; review đã có phản hồi thì **không đăng** (`ALREADY_REPLIED`); ô soạn phải đúng một ô và nội dung trong ô phải trùng khớp nội dung đã duyệt; sau khi bấm Đăng phải đọc lại thấy phản hồi hiển thị đúng trong thẻ đó mới coi là đã đăng; **không tự thử lại** (tránh đăng trùng); một lần một review, chạy tuần tự.
@@ -116,7 +125,8 @@ Chỉ nội dung **đã duyệt** (tab "Đã duyệt") mới được đăng; đ
 
 - **Nguồn dữ liệu: Tripadvisor Management Center** (`https://www.tripadvisor.com.vn/reviews?locationId=<mã cơ sở>&screen=allreviews`, cần đăng nhập, xem mục Cài đặt). Danh sách cơ sở lấy từ `https://www.tripadvisor.com.vn/Owners`. Danh sách ở Management Center xếp **mới nhất trước**, **đủ mọi ngôn ngữ**, 30 dòng một trang, có ngày chính xác và trạng thái phản hồi, và có cả bài chưa hiện ở trang công khai. Code: `collector/models/tripadvisorMc.js` (mở danh sách, đọc dòng, sang trang, dùng chung với phần đăng), `tripadvisorModel.js` (đọc), `tripadvisorParse.js` (phân tích thuần, có test). Route: `GET /tripadvisor/businesses`, `POST /tripadvisor/reviews` với `{limit, known}`.
 - **Không có mã review, nên review được nhận diện bằng nội dung**: `review_hash` = băm của *cơ sở + tiêu đề + số sao + 60 ký tự đầu của nội dung* (`contentHash`). Dòng thu gọn chỉ hiện phần đầu nội dung (cắt bằng "…") nên khóa dừng ở 60 ký tự để dòng thu gọn, review đã mở và nội dung đã lưu cho cùng một khóa. Hai review trùng cả tiêu đề, số sao và 60 ký tự đầu chỉ được đếm một. Khi đổi từ trang công khai sang Management Center đã chạy một lần `node scripts/migrate-tripadvisor-hash.js --apply` để đổi `review_hash` cũ (giữ bản cũ trong `raw_data.old_hash`); chạy lại không hại gì.
-- **Workflow riêng** `Tripadvisor Review Monitor` (id `tripadvisorReviewMonitor1`), cùng các node và cùng bảng `reviews` với Google, cột `platform = 'tripadvisor'`, chạy 09:30. `reviewsPerRun` (mặc định **5**) là số bài **mới** (chưa lưu) lấy cho **mỗi cơ sở** mỗi ngày. Workflow gửi các `review_hash` đã lưu của Tripadvisor (500 bài gần nhất); collector bỏ qua bài đã biết, đọc từng trang cho đến khi đủ 5 bài mới hoặc cả trang không còn bài mới. Vì danh sách xếp đúng theo thời gian, quy tắc dừng này chính xác. Chỉ bài mới mới được mở ra để đọc đủ nội dung. Tên người viết là **tên tài khoản** hiện ở Management Center (ví dụ "tuanminh_1996"), có thể khác tên hiển thị công khai.
+- **Workflow riêng** `Tripadvisor Review Monitor` (id `tripadvisorReviewMonitor1`), cùng các node và cùng bảng `reviews` với Google, cột `platform = 'tripadvisor'`, chạy 09:30. `reviewsPerRun` (mặc định **5**) là số bài **mới** (chưa lưu) lấy cho **mỗi cơ sở** mỗi ngày. Workflow gửi các `review_hash` đã lưu của Tripadvisor và `stopAfterKnown` (10); danh sách xếp đúng theo thời gian nên collector **dừng sau 10 dòng đã biết liên tiếp** (không phụ thuộc số mã gửi lên, nên vẫn đúng khi số review vượt 500). Chỉ bài mới mới được mở ra để đọc đủ nội dung; bài đọc dở không bao giờ được lưu (ghi `REVIEWS_PARTIAL`, lần sau đọc lại). Tên người viết là **tên tài khoản** hiện ở Management Center (ví dụ "tuanminh_1996"), có thể khác tên hiển thị công khai.
+- **Hai review giống hệt nhau** (cùng cơ sở, tiêu đề, số sao và 60 ký tự đầu, ví dụ "Tốt"/"ok") không còn bị coi là một: dòng đầu trong danh sách giữ khóa thường, các dòng sau có khóa kèm số thứ tự (`#2`, `#3`).
 - **Tự đăng phản hồi** (cùng cơ chế với Google, xem mục "Tự động đăng phản hồi"): bài Tripadvisor đã duyệt vào chung hàng đợi, đăng lần lượt, cách nhau `REPLY_GAP_MINUTES`, tính chung vào `REPLY_DAILY_LIMIT`, chỉ khi `REPLY_POSTING=live`. Code: `collector/models/tripadvisorReplyModel.js`, route `POST /tripadvisor/reply`, nhánh theo nền tảng trong `dashboard/models/publish.js`. Đăng qua **Tripadvisor Management Center** (`/reviews?locationId=<mã cơ sở>&screen=allreviews`): mở dòng review, điền ô "Your response", bấm **Gửi**. Dòng ở đó không có mã review nên được khớp bằng **tiêu đề + số sao + phần đầu nội dung** và phải là **duy nhất** (tên người viết chỉ dùng để phân biệt khi hai dòng giống hệt, vì trang quản lý có thể hiện tên tài khoản thay vì tên hiển thị, ví dụ "Phạm Tuấn Minh" hiện là "tuanminh_1996") trong 120 đánh giá mới nhất (trùng hoặc không thấy thì từ chối, không đoán). Từ chối nếu review đã có phản hồi khác; không retry khi bấm Gửi; xác nhận bằng cách tải lại trang và thấy dòng "Đã đăng phản hồi". Nếu bấm Gửi mà chưa xác nhận được thì báo lỗi, KHÔNG đăng lại: kiểm tra tay rồi bấm "Đã đăng tay". Thử không đăng thật: gọi collector với `dry_run: true` (điền ô, chụp ảnh vào `collector/screenshots/`, không bấm Gửi). Muốn tắt riêng Tripadvisor: bỏ `tripadvisor` khỏi `AUTO_PLATFORMS` trong `publish.js` (và `AUTO` trong `replies.js`).
 - **Bị chặn**: nếu Tripadvisor hiện "Access is temporarily restricted" hoặc đòi xác minh, collector dừng hẳn và ghi `AUTH_REQUIRED`; không thử lại liên tục, không né phát hiện. Chrome do Playwright mở bị chặn khi **đăng nhập**, nên đăng nhập bằng Chrome thường (`npm run login -- tripadvisor`); sau đó đọc bằng collector chạy được.
 - **Trạng thái phản hồi**: dòng có thể ghi "Đã đăng phản hồi" hoặc "Phản hồi đang chờ xử lý" (phản hồi vừa gửi, Tripadvisor đang kiểm duyệt); cả hai đều tính là đã phản hồi.
@@ -130,6 +140,10 @@ Chỉ nội dung **đã duyệt** (tab "Đã duyệt") mới được đăng; đ
 - **Thao tác duyệt**: thẻ biến mất ngay khi thao tác thành công, danh sách và số đếm làm mới ở nền; duyệt hàng loạt ghi 4 bài song song.
 - **Hàng đợi đăng**: kiểm tra mỗi 10 giây và được đánh thức ngay sau khi duyệt, nên bài đầu tiên của một hàng đợi trống được đăng sau vài giây (khoảng cách `REPLY_GAP_MINUTES` vẫn giữ giữa các bài). **Hỏi collector trước khi dùng một lượt thử**: nếu collector đang bận (một lượt đọc đang chạy) hoặc đã tắt thì bài chỉ đợi, không bị tính lượt thử và không bị timeout. Collector báo `busy` ở `GET /health`.
 - **Chỉ nên chạy lượt đọc dài (`npm run crawl`) khi hàng đợi trống**, vì collector chỉ làm một việc một lúc.
+
+## Bảo mật collector
+
+Collector (cổng 3010) điều khiển Chrome đã đăng nhập và có đường đăng phản hồi công khai, nên chỉ phục vụ chương trình cục bộ: **Host phải là 127.0.0.1/localhost, mọi yêu cầu có header Origin bị từ chối, và yêu cầu ghi phải là `application/json`** (`collector/models/requestGuard.js`, có test). Nhờ vậy một trang web bạn đang mở không thể ra lệnh cho nó (loại "yêu cầu đơn giản" `text/plain` và DNS rebinding). Nội dung nhận vào bị giới hạn 1 MB và 15 giây. Thư mục dự án dùng git; `.gitignore` giữ `.env`, `collector/profile/` (phiên đăng nhập thật) và ảnh chụp ngoài lịch sử. Mẫu cấu hình: `.env.example`.
 
 ## Quy tắc chung
 

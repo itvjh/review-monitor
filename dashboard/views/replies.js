@@ -1,7 +1,6 @@
 const TABS = [['pending', 'Chờ duyệt'], ['approved', 'Đã duyệt'], ['posted', 'Đã đăng'], ['rejected', 'Từ chối'], ['none', 'Chưa có bản nháp']];
 const LANG = { vi: 'Tiếng Việt', en: 'Tiếng Anh', ru: 'Tiếng Nga', ko: 'Tiếng Hàn', ja: 'Tiếng Nhật', zh: 'Tiếng Trung', fr: 'Tiếng Pháp', de: 'Tiếng Đức', th: 'Tiếng Thái' };
-const OWNER_URL = { google: 'https://business.google.com/reviews', tripadvisor: 'https://www.tripadvisor.com.vn/Owners' };
-const AUTO = ['google', 'tripadvisor']; // platforms the posting queue handles (keep in step with publish.AUTO_PLATFORMS)
+const AUTO = Object.keys(PLATFORMS).filter((id) => PLATFORMS[id].autoReply); // platforms the posting queue handles
 let status = 'pending', platform = '', busy = false, canModerate = false, posting = 'off', gapMinutes = 5;
 const selected = new Set(); // pending replies ticked for bulk approval
 const areas = new Map(); // review id -> its textarea (bulk approval sends the text as edited)
@@ -103,7 +102,7 @@ function card(r) {
     const manual = !AUTO.includes(p);
     btn('Sao chép nội dung', manual ? 'primary' : '', async (b) => { await navigator.clipboard.writeText(area.value); b.replaceChildren(icon('check'), 'Đã sao chép'); }, 'copy');
     const a = withIcon(el('a', 'btn', 'Mở trang quản lý ' + platformName(p)), 'external-link');
-    a.href = OWNER_URL[p]; a.target = '_blank'; a.rel = 'noopener';
+    a.href = PLATFORMS[p] ? PLATFORMS[p].ownerUrl : '#'; a.target = '_blank'; a.rel = 'noopener';
     actions.append(a);
     if (posting === 'dry-run' && !manual) btn('Chạy thử đăng', 'primary', (b) => run(() => post('/api/replies/post', { id: r.id }), b), 'send');
     if (r.stalled || r.reply_error) btn('Thử lại', 'primary', act('retry'), 'rotate-ccw');
@@ -191,6 +190,7 @@ async function load() {
     names = new Map(j.items.map((r) => [r.id, r.reviewer_name]));
     for (const id of [...selected]) if (!names.has(id)) selected.delete(id);
     if (!j.items.length) return list.append(el('div', 'empty-state', 'Không có mục nào.'));
+    if (j.counts[status] > j.items.length) list.append(el('div', 'meta', `Đang hiển thị ${j.items.length} bài mới nhất trong ${j.counts[status]} bài.`));
     if (status === 'pending' && canModerate) list.append(bulkBar(j.items));
     if (platform) return j.items.forEach((r) => list.append(card(r)));
     for (const p of Object.keys(PLATFORMS)) { // all platforms: one clearly labelled section each
