@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Trả lời đánh giá</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<header class="topbar">
+  <div class="topbar-in">
+    <a class="brand" href="/"><span class="brand-mark" aria-hidden="true"><svg class="icon" aria-hidden="true"><use href="/vendor/icons.svg#star"/></svg></span>Review Monitor</a>
+    <nav class="nav" aria-label="Điều hướng chính"><a href="/"><svg class="icon" aria-hidden="true"><use href="/vendor/icons.svg#bell"/></svg>Cảnh báo</a><a href="/replies" aria-current="page"><svg class="icon" aria-hidden="true"><use href="/vendor/icons.svg#message-square"/></svg>Trả lời đánh giá</a></nav>
+    <span id="role" class="pill"></span>
+  </div>
+</header>
+<main class="page">
+  <div class="page-head">
+    <div>
+      <h1>Trả lời đánh giá</h1>
+      <p class="sub">AI soạn bản nháp bằng đúng ngôn ngữ của khách. Chỉ nội dung đã duyệt mới được dùng. Khi bật đăng tự động, bài đã duyệt (Google và Tripadvisor) được xếp hàng và đăng lần lượt, cách nhau vài phút.</p>
+    </div>
+  </div>
+  <div id="mode"></div>
+  <div id="msg" aria-live="polite"></div>
+  <div class="segmented platform-tabs" id="platforms" role="group" aria-label="Nền tảng"></div>
+  <div class="tabs" id="tabs" role="group" aria-label="Trạng thái"></div>
+  <div id="list"></div>
+</main>
+<script src="/common.js"></script>
+<script src="/replies.js"></script>
+</body>
+</html>

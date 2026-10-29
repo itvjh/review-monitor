@@ -1,0 +1,21 @@
+{
+  "name": "gbp-review-monitor",
+  "private": true,
+  "scripts": {
+    "start": "node scripts/start-all.js",
+    "crawl": "node scripts/crawl-now.js",
+    "test": "node --test \"tests/*.test.js\"",
+    "build:workflow": "node workflows/build.js && node workflows/build.js workflows/tripadvisor-reviews.json tripadvisor",
+    "import:workflow": "n8n import:workflow --input=workflows/google-reviews.json && n8n publish:workflow --id=gbpReviewMonitor1 && n8n import:workflow --input=workflows/tripadvisor-reviews.json && n8n publish:workflow --id=tripadvisorReviewMonitor1",
+    "build:schema": "node scripts/build-schema.js",
+    "setup:credentials": "node scripts/setup-credentials.js",
+    "start:collector": "npm --prefix collector start",
+    "start:dashboard": "node dashboard/server.js",
+    "login": "npm --prefix collector run login",
+    "build:icons": "node scripts/build-icons.js"
+  },
+  "dependencies": {
+    "chart.js": "^4.6.1",
+    "lucide-static": "^1.63.0"
+  }
+}

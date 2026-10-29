@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cảnh báo đánh giá</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<header class="topbar">
+  <div class="topbar-in">
+    <a class="brand" href="/"><span class="brand-mark" aria-hidden="true"><svg class="icon" aria-hidden="true"><use href="/vendor/icons.svg#star"/></svg></span>Review Monitor</a>
+    <nav class="nav" aria-label="Điều hướng chính"><a href="/" aria-current="page"><svg class="icon" aria-hidden="true"><use href="/vendor/icons.svg#bell"/></svg>Cảnh báo</a><a href="/replies"><svg class="icon" aria-hidden="true"><use href="/vendor/icons.svg#message-square"/></svg>Trả lời đánh giá</a></nav>
+    <span id="role" class="pill"></span>
+  </div>
+</header>
+<main class="page">
+  <div class="page-head">
+    <div>
+      <h1>Cảnh báo đánh giá</h1>
+      <p class="sub" id="status" aria-live="polite">Đang tải…</p>
+    </div>
+    <button class="btn" id="refresh" type="button"><svg class="icon" aria-hidden="true"><use href="/vendor/icons.svg#refresh-cw"/></svg>Làm mới</button>
+  </div>
+  <div id="banner"></div>
+  <section class="runs" id="runs" aria-label="Tình trạng thu thập theo nền tảng"></section>
+  <div class="segmented platform-tabs" id="platforms" role="group" aria-label="Nền tảng"></div>
+  <div class="kpis" id="stats"></div>
+  <div class="toolbar">
+    <div class="segmented" id="views" role="group" aria-label="Chế độ xem"></div>
+    <select id="days" aria-label="Khoảng thời gian">
+      <option value="7">7 ngày qua</option><option value="14" selected>14 ngày qua</option><option value="30">30 ngày qua</option><option value="90">90 ngày qua</option>
+    </select>
+    <select id="biz" aria-label="Doanh nghiệp"><option value="">Tất cả doanh nghiệp</option></select>
+    <select id="reply" aria-label="Phản hồi">
+      <option value="">Tất cả phản hồi</option><option value="no">Chưa phản hồi</option><option value="yes">Đã phản hồi</option>
+    </select>
+  </div>
+  <section class="charts" id="charts" aria-label="Biểu đồ">
+    <div class="panel"><h2><svg class="icon" aria-hidden="true"><use href="/vendor/icons.svg#chart-column"/></svg>Đánh giá theo ngày</h2><div class="chart-box"><canvas id="trend" role="img" aria-label="Biểu đồ đánh giá theo ngày"></canvas></div></div>
+    <div class="panel"><h2><svg class="icon" aria-hidden="true"><use href="/vendor/icons.svg#star"/></svg>Phân bố số sao</h2><div class="chart-box"><canvas id="ratings" role="img" aria-label="Biểu đồ phân bố số sao"></canvas></div></div>
+  </section>
+  <div id="list" aria-live="polite"></div>
+</main>
+<script src="/vendor/chart.js"></script>
+<script src="/common.js"></script>
+<script src="/app.js"></script>
+</body>
+</html>

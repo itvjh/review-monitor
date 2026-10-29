@@ -1,0 +1,829 @@
+{
+  "id": "gbpReviewMonitor1",
+  "name": "Google Business Profile Review Monitor",
+  "nodes": [
+    {
+      "id": "schedule-daily",
+      "name": "Schedule Daily",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        200,
+        200
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 9 * * *"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "manual-run",
+      "name": "Manual Run",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        440,
+        200
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "config",
+      "name": "Config",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        680,
+        200
+      ],
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "collectorUrl",
+              "name": "collectorUrl",
+              "value": "http://127.0.0.1:3010",
+              "type": "string"
+            },
+            {
+              "id": "supabaseUrl",
+              "name": "supabaseUrl",
+              "value": "https://qwevixyvfnbnzpazzfri.supabase.co",
+              "type": "string"
+            },
+            {
+              "id": "platform",
+              "name": "platform",
+              "value": "google",
+              "type": "string"
+            },
+            {
+              "id": "reviewsPerRun",
+              "name": "reviewsPerRun",
+              "value": 30,
+              "type": "number"
+            },
+            {
+              "id": "stopAfterKnown",
+              "name": "stopAfterKnown",
+              "value": 10,
+              "type": "number"
+            },
+            {
+              "id": "geminiModel",
+              "name": "geminiModel",
+              "value": "gemini-3.5-flash-lite",
+              "type": "string"
+            },
+            {
+              "id": "aiDelaySeconds",
+              "name": "aiDelaySeconds",
+              "value": 5,
+              "type": "number"
+            },
+            {
+              "id": "systemPrompt",
+              "name": "systemPrompt",
+              "value": "You are a hospitality customer experience analyst.\n\nAnalyze Google reviews for hotels, restaurants and hospitality businesses.\n\nYour job is to determine customer sentiment, identify operational issues, categorize feedback and determine whether management attention is required.\n\nDo not invent information not contained in the review.\n\nA review can belong to multiple categories.\n\nIf the review contains serious complaints involving safety, theft, fraud, discrimination, hygiene, legal threats or severe service failures, set requires_attention=true.\n\nReturn valid JSON only, exactly this shape:\n{\"sentiment\":\"positive|neutral|negative\",\"sentiment_score\":-100..100,\"category\":[],\"priority\":\"low|medium|high|urgent\",\"requires_attention\":false,\"summary\":\"\",\"key_points\":[],\"suggested_action\":\"\",\"language\":\"\",\"ai_confidence\":0..1,\"reply_draft\":\"\"}\n\nsentiment_score: -100 extremely negative, 0 neutral, 100 extremely positive. ai_confidence is a number from 0 to 1.\ncategory: zero or more of ROOM, CLEANLINESS, STAFF, SERVICE, LOCATION, PRICE, BREAKFAST, FOOD, FACILITIES, WIFI, NOISE, CHECKIN, CHECKOUT, BOOKING, PAYMENT, PARKING, SECURITY, AIR_CONDITIONER, BATHROOM, BED, VIEW, POOL, RESTAURANT, OTHER. Use every category the review touches, not just one.\npriority guide: rating 5 -> low; 4 -> low or medium; 3 -> medium; 2 -> high; 1 -> high or urgent. Also read the text: fraud, lost items, theft, accidents, safety, severe hygiene, food poisoning, discrimination, threats, serious refund demands, or threats to post publicly / take legal action -> urgent with requires_attention=true.\nreply_draft is a draft public reply from the business owner, written under the reply rules at the end of this prompt (in the review's own language, NOT Vietnamese unless the review is). If there is already an existing owner response, set reply_draft to \"\".\nWrite summary, key_points and suggested_action in Vietnamese, whatever language the review is in. Keep every enum value (sentiment, priority, category) exactly as listed in English, and set language to the ISO code of the review's own language (vi, en, ru...).\nIf the review has a rating but no text, do not guess problems: use sentiment from the rating (5 -> positive, score about 80), empty category, priority low, requires_attention false, summary \"Khách chỉ để lại <số sao> sao, không có nội dung đánh giá.\" (write the real number, e.g. \"5 sao\", never the letter N), key_points [], suggested_action \"Không cần xử lý.\", language \"unknown\", ai_confidence 0.95.\n\nREPLY RULES (for reply_draft)\nRules for the owner's public reply to a Google review. Follow the house style below: it is how the business already answers its guests.\n\nLANGUAGE\n- Google may append a machine translation to the review: blocks marked \"(Bản dịch tự động của Google)\" / \"(Translated by Google)\" are NOT what the guest wrote, and the guest's real text is the block marked \"(Bản gốc)\" / \"(Original)\". Judge the language (and set the \"language\" field) from the original block only, never from the translation, even when the translation comes first.\n- Write the reply in the SAME language as the review text (a Russian review gets a Russian reply, an English review an English reply). If the review has no text (rating only), reply in Vietnamese.\n- For languages not shown below, translate the same structure and the same formal, courteous tone.\n\nHOUSE STYLE (formal, warm, polite; plural \"we/chúng tôi\", the guest is \"quý khách / you\")\n1. Greeting: Vietnamese \"Kính gửi quý khách {Tên khách},\" (never \"ông/bà\") | English \"Dear Mr./Ms. {Guest name},\". Never guess the guest's gender. If the reviewer name is not a real person's name (a nickname, an emoji, a single word), use \"Kính gửi quý khách,\" / \"Dear valued guest,\".\n2. Thank them for taking the time to review.\n3. Say we truly value the feedback and are delighted to know about their experience at our {place}. {place} is a plain common noun for the kind of business, NEVER the business name: hotel -> \"khách sạn\" / \"hotel\"; cafe -> \"quán cà phê\" / \"cafe\"; mini mart -> \"cửa hàng\" / \"store\"; restaurant -> \"nhà hàng\" / \"restaurant\". In any other language use that language's own everyday word (Thai \"โรงแรม\", Russian \"отель\", Korean \"호텔\"...), never the English word inside a non-English sentence.\n4. Say their comments motivate the team to keep improving the service and give guests the best possible experience.\n5. Thank them once again for their support and say we hope to welcome them back soon.\n6. Closing and signature on separate lines: Vietnamese \"Trân trọng cảm ơn,\" then \"Đội ngũ {Brand}\" | English \"Thank you and best regards,\" then \"{Brand} Team\".\nUse short paragraphs separated by a blank line (greeting / thanks + feedback + motivation / thanks again + hope to see you / closing + signature). About 70 to 100 words.\n\nREFERENCE REPLIES (positive review). Keep the wording almost verbatim; do not add details of the stay.\nVietnamese:\nKính gửi quý khách {Tên khách},\n\nChúng tôi chân thành cảm ơn quý khách đã dành thời gian để lại đánh giá cho chúng tôi. Chúng tôi thực sự trân trọng những phản hồi quý báu của quý khách và rất vui mừng khi biết về trải nghiệm của quý khách tại {khách sạn}. Những ý kiến đóng góp của quý khách là động lực lớn giúp đội ngũ của chúng tôi tiếp tục cải thiện dịch vụ và mang đến trải nghiệm tốt nhất cho khách hàng.\n\nMột lần nữa, chúng tôi xin cảm ơn sự ủng hộ của quý khách. Chúng tôi hy vọng sẽ có vinh dự được đón tiếp quý khách trở lại trong thời gian tới.\n\nTrân trọng cảm ơn,\nĐội ngũ {Brand}\n\nEnglish:\nDear Mr./Ms. {Guest name},\n\nThank you very much for taking the time to leave us a review. We truly appreciate your kind feedback and are delighted to know about your experience with our {hotel}. Your comments are a great motivation for our team to continue improving our services and providing the best possible experience for our guests.\n\nThank you once again for your support. We hope to have the pleasure of welcoming you back in the near future.\n\nThank you and best regards,\n{Brand} Team\n\nNEGATIVE OR MIXED REVIEW (rating 1 to 3, or any complaint)\nKeep the same greeting, courteous tone, paragraph layout and closing. Replace step 3 and 4 with: a sincere apology that their experience did not meet expectations, an acknowledgement of the specific problems they raised, the assurance that the team will look into it and improve, and an invitation to contact the business directly. Do NOT invent phone numbers, emails, links or staff names. Never promise a refund, compensation, discount or free item; never admit legal liability; never blame the guest; never repeat personal data. No emoji.\n\nSIGNATURE BRAND (the {Brand} in the closing; copy it exactly, character for character, even when it is shorter than the business name)\n- Business \"Yzistel Hoi An\" -> Brand \"Yzistel\"\n- Business \"Vintage Taste Deli Cafe\" -> Brand \"Vintage Taste Deli Cafe\"\n- Business \"Vintage Taste Deli Cafe Hoi An\" -> Brand \"Vintage Taste Deli Cafe\"\n- Business \"Vintage Taste Deli Cafe Rooftop\" -> Brand \"Vintage Taste Deli Cafe\"\n- Business \"Sontra Sea Hotel\" -> Brand \"Sontra Sea Hotel\"\n- Business \"Sontra mini Mart 24h\" -> Brand \"Sontra mini Mart 24h\"\n- Business \"Quy Nhon mini Mart 24h\" -> Brand \"Quy Nhon mini Mart 24h\"\n- Business \"Gia Lai mini Mart 24h\" -> Brand \"Gia Lai mini Mart 24h\"\n- Business \"Vistara Gia Lai Sea Hotel\" -> Brand \"Vistara Gia Lai Sea Hotel\"\n- Business \"Vistara Quy Nhon Sea Hotel\" -> Brand \"Vistara Quy Nhon Sea Hotel\"\n- Any other business -> its name exactly as given.",
+              "type": "string"
+            },
+            {
+              "id": "startedAt",
+              "name": "startedAt",
+              "value": "={{ $now.toISO() }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "browser-get-businesses",
+      "name": "Browser: Get Businesses",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        920,
+        200
+      ],
+      "parameters": {
+        "url": "={{ $json.collectorUrl }}/businesses",
+        "options": {
+          "timeout": 300000
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "auth-check",
+      "name": "Auth Check",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1160,
+        200
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.status === 'OK' && Array.isArray($json.businesses) && $json.businesses.length > 0 }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "auth-summary",
+      "name": "Auth Summary",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1400,
+        200
+      ],
+      "parameters": {
+        "jsCode": "// n8n Code node \"Auth Summary\" (run once for all items). Globals: $, $json.\n// The collector could not list businesses (login needed, selector change, collector down): record a FAILED run.\nconst code = $json.status === 'AUTH_REQUIRED' ? 'AUTH_REQUIRED' : $json.status === 'OK' ? 'BUSINESS_NOT_FOUND' : ($json.error_code || 'NETWORK_ERROR');\nconst message = String($json.error_message || ($json.error && $json.error.message) || (code === 'BUSINESS_NOT_FOUND' ? 'no managed businesses found' : code));\nconst now = new Date().toISOString();\nconst summary = { businesses_checked: 0, reviews_scanned: 0, new_reviews: 0, positive_reviews: 0, neutral_reviews: 0, negative_reviews: 0, urgent_reviews: 0, errors: 1, started_at: $('Config').first().json.startedAt, completed_at: now };\nreturn [{ json: { status: 'FAILED', error_code: code, message, summary, errors: [{ business: null, error_code: code, error_message: message, screenshot: $json.screenshot || null, timestamp: now }] } }];"
+      }
+    },
+    {
+      "id": "split-businesses",
+      "name": "Split Businesses",
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [
+        1640,
+        200
+      ],
+      "parameters": {
+        "fieldToSplitOut": "businesses",
+        "options": {}
+      }
+    },
+    {
+      "id": "upsert-business",
+      "name": "Upsert Business",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1880,
+        200
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Config').first().json.supabaseUrl }}/rest/v1/businesses?on_conflict=platform,external_business_id",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Prefer",
+              "value": "resolution=merge-duplicates,return=representation"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { platform: $('Config').first().json.platform, external_business_id: $json.business_identifier, business_name: $json.business_name, address: $json.address || null, profile_url: $json.business_profile_url || null, active: true, updated_at: $now.toISO() } }}",
+        "options": {}
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "supabaseKey",
+          "name": "Supabase API Key"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "get-known-hashes",
+      "name": "Get Known Hashes",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2120,
+        200
+      ],
+      "parameters": {
+        "url": "={{ $('Config').first().json.supabaseUrl }}/rest/v1/reviews?select=review_hash&platform=eq.google&order=collected_at.desc&limit=500",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {}
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "supabaseKey",
+          "name": "Supabase API Key"
+        }
+      },
+      "executeOnce": true,
+      "alwaysOutputData": true,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "browser-read-reviews",
+      "name": "Browser: Read Reviews",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2360,
+        200
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Config').first().json.collectorUrl }}/reviews",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { limit: $('Config').first().json.reviewsPerRun, stopAfterKnown: $('Config').first().json.stopAfterKnown, known: $('Get Known Hashes').all().map((i) => i.json.review_hash).filter(Boolean) } }}",
+        "options": {
+          "timeout": 900000
+        }
+      },
+      "executeOnce": true,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "flatten-reviews",
+      "name": "Flatten Reviews",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2600,
+        200
+      ],
+      "parameters": {
+        "jsCode": "// n8n Code node \"Flatten Reviews\" (run once for all items). Globals: $, $input, $json.\n// Joins the collector response with the Supabase business ids and emits one item per review.\nconst r = $input.first().json;\nconst biz = $('Split Businesses').all().map((i) => i.json);\nconst ups = $('Upsert Business').all().map((i) => i.json);\nconst msg = (e) => String((e && e.message) || e || '');\nconst idMap = {};\nconst errors = [];\nfor (const u of ups) {\n  if (u.id) idMap[u.external_business_id] = u.id;\n  else errors.push({ business: null, error_code: 'DATABASE_ERROR', error_message: msg(u.error), screenshot: null });\n}\nconst nameOf = Object.fromEntries(biz.map((b) => [b.business_identifier, b.business_name]));\nlet fatal = false;\nlet reviews = [];\nif (r.error) { fatal = true; errors.push({ business: null, error_code: 'NETWORK_ERROR', error_message: msg(r.error), screenshot: null }); }\nelse if (r.status !== 'OK') { fatal = true; errors.push({ business: null, error_code: r.error_code || 'UNKNOWN_ERROR', error_message: r.error_message || r.status, screenshot: r.screenshot || null }); }\nelse { reviews = r.reviews || []; for (const e of r.errors || []) errors.push({ business: e.business, error_code: e.error_code, error_message: e.error_message, screenshot: null }); } // per-property failures\nconst out = [];\nconst t0 = Date.now();\nfor (const x of reviews) {\n  if (!idMap[x.business_identifier]) {\n    errors.push({ business: x.business_identifier, error_code: 'BUSINESS_NOT_FOUND', error_message: 'review for a business missing from the locations list', screenshot: null });\n    continue;\n  }\n  // Feed is newest first; 1 ms steps keep that order in collected_at, the dashboard's tie-break inside one day.\n  out.push({ json: { ...x, platform: x.platform || 'google', business_id: idMap[x.business_identifier], business_name: nameOf[x.business_identifier], collected_at: new Date(t0 - out.length).toISOString() } });\n}\n// Sentinel keeps the review loop (and the final summary) running when nothing was scraped.\nif (!out.length) out.push({ json: { _sentinel: true, review_hash: 'none' } });\nout[0].json._stats = { businesses: biz.length, scanned: r.scanned || 0, errors, fatal };\nreturn out;"
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "id": "review-loop",
+      "name": "Review Loop",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        2840,
+        200
+      ],
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      }
+    },
+    {
+      "id": "check-existing",
+      "name": "Check Existing",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        200,
+        460
+      ],
+      "parameters": {
+        "url": "={{ $('Config').first().json.supabaseUrl }}/rest/v1/reviews?select=id&limit=1&review_hash=eq.{{ $json.review_hash }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {}
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "supabaseKey",
+          "name": "Supabase API Key"
+        }
+      },
+      "alwaysOutputData": true,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "is-new-",
+      "name": "Is New?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        440,
+        460
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ !$json.id && !$json.error && !$('Review Loop').item.json._sentinel }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "ai-pace",
+      "name": "AI Pace",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        680,
+        460
+      ],
+      "parameters": {
+        "amount": "={{ $('Config').first().json.aiDelaySeconds }}",
+        "unit": "seconds"
+      }
+    },
+    {
+      "id": "ai-analysis",
+      "name": "AI Analysis",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        920,
+        460
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "=https://generativelanguage.googleapis.com/v1beta/models/{{ $('Config').first().json.geminiModel }}:generateContent",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { systemInstruction: { parts: [{ text: $('Config').first().json.systemPrompt }] }, contents: [{ role: 'user', parts: [{ text: 'Business:\\n' + $('Review Loop').item.json.business_name + '\\n\\nRating:\\n' + $('Review Loop').item.json.rating + '/5\\n\\nReviewer:\\n' + $('Review Loop').item.json.reviewer_name + '\\n\\nReview:\\n' + ($('Review Loop').item.json.review_text || '(no text)') + '\\n\\nExisting owner response:\\n' + ($('Review Loop').item.json.owner_reply || '(none)') + '\\n\\nReturn according to the required JSON schema.' }] }], generationConfig: { responseMimeType: 'application/json', temperature: 0 } } }}",
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "geminiKey",
+          "name": "Gemini API Key"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "validate-ai",
+      "name": "Validate AI",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1160,
+        460
+      ],
+      "parameters": {
+        "jsCode": "// n8n Code node \"Validate AI\" (run once for each item). Globals: $, $json.\n// Never trust model output: parse, check enums, clamp numbers, drop unknown categories, enforce the rating->priority floor.\nconst r = $('Review Loop').item.json;\nconst CATS = ['ROOM','CLEANLINESS','STAFF','SERVICE','LOCATION','PRICE','BREAKFAST','FOOD','FACILITIES','WIFI','NOISE','CHECKIN','CHECKOUT','BOOKING','PAYMENT','PARKING','SECURITY','AIR_CONDITIONER','BATHROOM','BED','VIEW','POOL','RESTAURANT','OTHER'];\nconst SENT = ['positive', 'neutral', 'negative'];\nconst PRI = ['low', 'medium', 'high', 'urgent'];\nconst fail = (m) => ({ json: { ...r, ai_ok: false, ai_error: m } });\nif ($json.error) return fail(String($json.error.message || $json.error));\nlet a;\ntry { a = JSON.parse($json.candidates[0].content.parts.map((p) => p.text).join('')); } catch (e) { return fail('invalid JSON from model'); }\nif (!SENT.includes(a.sentiment) || !PRI.includes(a.priority)) return fail('schema violation');\nconst floor = r.rating <= 2 ? 2 : r.rating === 3 ? 1 : 0; // rating sets the minimum priority\nconst priority = PRI[Math.max(PRI.indexOf(a.priority), floor)];\nconst clamp = (n, lo, hi) => Math.max(lo, Math.min(hi, Number(n) || 0));\nreturn { json: {\n  ...r, ai_ok: true,\n  sentiment: a.sentiment,\n  sentiment_score: Math.round(clamp(a.sentiment_score, -100, 100)),\n  category: (Array.isArray(a.category) ? a.category : []).filter((c) => CATS.includes(c)),\n  priority,\n  requires_attention: Boolean(a.requires_attention) || priority === 'urgent',\n  summary: String(a.summary || ''),\n  key_points: Array.isArray(a.key_points) ? a.key_points.map(String) : [],\n  suggested_action: String(a.suggested_action || ''),\n  language: String(a.language || 'unknown'),\n  reply_draft: r.has_owner_reply ? '' : String(a.reply_draft || '').trim().slice(0, 3500), // human moderates it later\n  ai_confidence: clamp(a.ai_confidence, 0, 1),\n  analyzed_at: new Date().toISOString(),\n} };",
+        "mode": "runOnceForEachItem"
+      }
+    },
+    {
+      "id": "ai-ok-",
+      "name": "AI OK?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1400,
+        460
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.ai_ok === true }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "save-review",
+      "name": "Save Review",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1640,
+        460
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Config').first().json.supabaseUrl }}/rest/v1/reviews?on_conflict=review_hash",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Prefer",
+              "value": "resolution=ignore-duplicates,return=representation"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { platform: $json.platform, business_id: $json.business_id, review_hash: $json.review_hash, external_review_id: $json.review_id || null, reviewer_name: $json.reviewer_name, rating: $json.rating, review_text: $json.review_text || '', review_date: $json.review_date || null, review_date_raw: $json.review_date_text || null, owner_reply: $json.owner_reply || null, has_owner_reply: !!$json.has_owner_reply, sentiment: $json.sentiment, sentiment_score: $json.sentiment_score, category: $json.category, priority: $json.priority, requires_attention: $json.requires_attention, summary: $json.summary, suggested_action: $json.suggested_action, language: $json.language, ai_confidence: $json.ai_confidence, reply_draft: $json.reply_draft || null, reply_status: ($json.reply_draft && !$json.has_owner_reply) ? 'pending' : null, raw_data: { key_points: $json.key_points }, collected_at: $json.collected_at, analyzed_at: $json.analyzed_at } }}",
+        "options": {}
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "supabaseKey",
+          "name": "Supabase API Key"
+        }
+      },
+      "alwaysOutputData": true,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "reply-module-disabled-v2-",
+      "name": "Reply Module (disabled, v2)",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        1880,
+        460
+      ],
+      "parameters": {},
+      "disabled": true,
+      "notes": "Future: Generate Reply -> Approval -> Post Reply. Not wired in V1 on purpose."
+    },
+    {
+      "id": "run-summary",
+      "name": "Run Summary",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2120,
+        460
+      ],
+      "parameters": {
+        "jsCode": "// n8n Code node \"Run Summary\" (run once for all items). Globals: $, $input.\n// Fires when the review loop is done; its input is every item that looped back (saved, skipped or failed).\nconst cfg = $('Config').first().json;\nconst stats = $('Flatten Reviews').first().json._stats;\nconst items = $input.all().map((i) => i.json);\nconst saved = items.filter((r) => r.id && r.sentiment);\nconst aiFail = items.filter((r) => r.ai_ok === false).length;\nconst dbFail = items.filter((r) => r.error).length;\nconst now = new Date().toISOString();\nconst errors = stats.errors.map((e) => ({ ...e, timestamp: now }));\nif (aiFail) errors.push({ business: null, error_code: 'AI_ERROR', error_message: aiFail + ' review(s) not analyzed; retried next run', screenshot: null, timestamp: now });\nif (dbFail) errors.push({ business: null, error_code: 'DATABASE_ERROR', error_message: dbFail + ' review(s) failed to save/check', screenshot: null, timestamp: now });\nconst count = (f) => saved.filter(f).length;\nconst summary = {\n  platform: cfg.platform || 'google',\n  businesses_checked: stats.businesses,\n  reviews_scanned: stats.scanned,\n  new_reviews: saved.length,\n  positive_reviews: count((r) => r.sentiment === 'positive'),\n  neutral_reviews: count((r) => r.sentiment === 'neutral'),\n  negative_reviews: count((r) => r.sentiment === 'negative'),\n  urgent_reviews: count((r) => r.priority === 'urgent'),\n  errors: errors.length,\n  started_at: cfg.startedAt,\n  completed_at: now,\n};\nconst status = stats.fatal ? 'FAILED' : errors.length ? 'PARTIAL' : 'SUCCESS';\nreturn [{ json: { status, summary, errors, error_code: errors.length ? errors[0].error_code : null, message: errors.map((e) => e.error_code + ': ' + e.error_message).join('\\n') } }];"
+      }
+    },
+    {
+      "id": "save-run",
+      "name": "Save Run",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2360,
+        460
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Config').first().json.supabaseUrl }}/rest/v1/automation_runs",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { status: $json.status, summary: $json.summary, errors: $json.errors, started_at: $json.summary.started_at, completed_at: $json.summary.completed_at } }}",
+        "options": {}
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "supabaseKey",
+          "name": "Supabase API Key"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "onError": "continueRegularOutput"
+    }
+  ],
+  "connections": {
+    "Schedule Daily": {
+      "main": [
+        [
+          {
+            "node": "Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Manual Run": {
+      "main": [
+        [
+          {
+            "node": "Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Config": {
+      "main": [
+        [
+          {
+            "node": "Browser: Get Businesses",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Browser: Get Businesses": {
+      "main": [
+        [
+          {
+            "node": "Auth Check",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Auth Check": {
+      "main": [
+        [
+          {
+            "node": "Split Businesses",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Auth Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Auth Summary": {
+      "main": [
+        [
+          {
+            "node": "Save Run",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Businesses": {
+      "main": [
+        [
+          {
+            "node": "Upsert Business",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upsert Business": {
+      "main": [
+        [
+          {
+            "node": "Get Known Hashes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Known Hashes": {
+      "main": [
+        [
+          {
+            "node": "Browser: Read Reviews",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Browser: Read Reviews": {
+      "main": [
+        [
+          {
+            "node": "Flatten Reviews",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Flatten Reviews": {
+      "main": [
+        [
+          {
+            "node": "Review Loop",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Review Loop": {
+      "main": [
+        [
+          {
+            "node": "Run Summary",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Check Existing",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Existing": {
+      "main": [
+        [
+          {
+            "node": "Is New?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is New?": {
+      "main": [
+        [
+          {
+            "node": "AI Pace",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Review Loop",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Pace": {
+      "main": [
+        [
+          {
+            "node": "AI Analysis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Analysis": {
+      "main": [
+        [
+          {
+            "node": "Validate AI",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate AI": {
+      "main": [
+        [
+          {
+            "node": "AI OK?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI OK?": {
+      "main": [
+        [
+          {
+            "node": "Save Review",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Review Loop",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save Review": {
+      "main": [
+        [
+          {
+            "node": "Reply Module (disabled, v2)",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Review Loop",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Run Summary": {
+      "main": [
+        [
+          {
+            "node": "Save Run",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Asia/Ho_Chi_Minh"
+  },
+  "active": false
+}

@@ -1,0 +1,7 @@
+# secrets and the logged-in browser session: never commit
+.env
+collector/profile/
+collector/screenshots/
+node_modules/
+collector/node_modules/
+*.log
