@@ -1,9 +1,12 @@
-// Runs a workflow once right now (same as pressing "Execute workflow"):  npm run crawl [-- tripadvisor]
+// Runs a workflow once right now (same as pressing "Execute workflow"):  npm run crawl [-- <platform>]  (google by default; the list is config/platforms.js)
 // Use it when the PC was off at 09:00, or to pick up new reviews without waiting. Works while n8n is running.
 const { spawnSync } = require('child_process');
 const env = require('../config/env');
 
-const ID = process.argv[2] === 'tripadvisor' ? 'tripadvisorReviewMonitor1' : 'gbpReviewMonitor1';
+const platforms = require('../config/platforms');
+const chosen = platforms[process.argv[2] || 'google'];
+if (!chosen) { console.error('Nền tảng không có trong config/platforms.js: ' + process.argv[2] + ' (có: ' + Object.keys(platforms).join(', ') + ')'); process.exit(1); }
+const ID = chosen.workflow.id;
 console.log('Đang chạy workflow một lần (có thể mất vài phút)...');
 // a second n8n process needs its own task-broker port while the main one is running
 const r = spawnSync('n8n', ['execute', '--id=' + ID], { shell: true, stdio: 'ignore', env: { ...process.env, N8N_RUNNERS_BROKER_PORT: '5690' } });

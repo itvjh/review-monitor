@@ -16,6 +16,16 @@ exports.mode = mode;
 const AUTO_PLATFORMS = Object.keys(platforms).filter((id) => platforms[id].autoReply);
 exports.AUTO_PLATFORMS = AUTO_PLATFORMS;
 
+// Each collector adapter identifies the review its own way. `base` = what every platform gets (business, reviewer, text, retry flag, dry run, deadline;
+// retry: markAttempt already counted this attempt, so more than one means an earlier attempt may have posted without telling us).
+const NEEDS_REVIEW_ID = ['google', 'agoda']; // Tripadvisor's list has no review ids: it is matched by title, stars and text
+const lines = (row) => String(row.review_text || '').split('\n');
+const PAYLOAD = {
+  google: (row, base) => ({ review_id: row.external_review_id, ...base }),
+  tripadvisor: (row, base) => ({ title: lines(row)[0], body: lines(row).slice(1).join(' '), rating: row.rating, ...base }),
+  agoda: (row, base) => ({ bid: row.external_review_id, language: row.language, ...base }),
+};
+
 const startOfToday = () => { const d = new Date(); d.setHours(0, 0, 0, 0); return d.toISOString(); };
 exports.startOfToday = startOfToday;
 exports.DAILY_LIMIT = DAILY_LIMIT;
@@ -32,15 +42,11 @@ exports.publish = async (id) => {
     const text = (row.reply_final || '').trim();
     if (rules.hasError(rules.lint(text))) throw new HttpError(400, 'Nội dung đã duyệt không hợp lệ.');
     const biz = row.businesses && row.businesses.external_business_id;
-    const tripadvisor = row.platform === 'tripadvisor'; // its Management Center rows have no review id: matched by reviewer + title + stars
-    if (!biz || (!tripadvisor && !row.external_review_id)) throw new HttpError(409, 'Thiếu mã review hoặc cơ sở nên không thể tự đăng. Hãy đăng tay.');
+    if (!biz || (NEEDS_REVIEW_ID.includes(row.platform) && !row.external_review_id)) throw new HttpError(409, 'Thiếu mã review hoặc cơ sở nên không thể tự đăng. Hãy đăng tay.');
     if (mode() === 'live' && (await Reply.postedSince(startOfToday())) >= DAILY_LIMIT) {
       throw new HttpError(429, `Đã đạt giới hạn ${DAILY_LIMIT} phản hồi tự đăng mỗi ngày (REPLY_DAILY_LIMIT).`);
     }
-    // retry: markAttempt already counted this attempt, so more than one means an earlier attempt may have posted without telling us
-    const payload = tripadvisor
-      ? { business_identifier: biz, reviewer_name: row.reviewer_name, title: String(row.review_text || '').split('\n')[0], body: String(row.review_text || '').split('\n').slice(1).join(' '), rating: row.rating, retry: row.reply_attempts > 1, text, dry_run: mode() !== 'live', deadline: Date.now() + 170000 }
-      : { review_id: row.external_review_id, business_identifier: biz, reviewer_name: row.reviewer_name, text, dry_run: mode() !== 'live', deadline: Date.now() + 170000 };
+    const payload = PAYLOAD[row.platform](row, { business_identifier: biz, reviewer_name: row.reviewer_name, text, retry: row.reply_attempts > 1, dry_run: mode() !== 'live', deadline: Date.now() + 170000 });
     const out = await collector.postReply(payload, row.platform);
     if (out.status !== 'OK') throw new HttpError(502, `${out.error_code || 'LỖI'}: ${out.error_message || out.status}${out.screenshot ? ` (ảnh: ${out.screenshot})` : ''}`);
     if (out.posted) return { result: 'posted', item: await Reply.act(id, 'posted') };

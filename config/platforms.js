@@ -21,4 +21,12 @@ module.exports = {
       businesses: '/tripadvisor/businesses', reviews: '/tripadvisor/reviews', perRun: 5, perRunNote: 'NEW (not yet stored) reviews taken per property per run, newest first; raise it once for a backfill',
     },
   },
+  agoda: {
+    name: 'Agoda', color: '#b4235a', tint: '#fbe7ef',
+    login: 'npm run login -- agoda', ownerUrl: 'https://portal.agoda.com/', autoReply: true,
+    workflow: {
+      id: 'agodaReviewMonitor1', name: 'Agoda Review Monitor', file: 'agoda-reviews.json', cron: '0 10 * * *',
+      businesses: '/agoda/businesses', reviews: '/agoda/reviews', perRun: 5, perRunNote: 'NEW (not yet stored) reviews taken per property per run, newest first; raise it once for a backfill',
+    },
+  },
 };

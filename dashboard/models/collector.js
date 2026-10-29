@@ -13,9 +13,9 @@ exports.status = async () => {
   } catch (e) { return { up: false, busy: false }; }
 };
 
-// platform: 'google' (/reply) or 'tripadvisor' (/tripadvisor/reply)
+// platform: 'google' (/reply) or any other registered platform (/<platform>/reply)
 exports.postReply = async (payload, platform = 'google') => {
-  const res = await fetch(`${URL_BASE}${platform === 'tripadvisor' ? '/tripadvisor' : ''}/reply`, {
+  const res = await fetch(`${URL_BASE}${platform === 'google' ? '' : '/' + platform}/reply`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify(payload),
