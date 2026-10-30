@@ -4,6 +4,7 @@
 const { CodedError, clean } = require('./errors');
 const Mc = require('./tripadvisorMc');
 const cooldown = require('./cooldown');
+const diskCache = require('./diskCache');
 const { parseDate, contentHash, parseOpened } = require('./tripadvisorParse');
 
 const OWNERS_URL = 'https://www.tripadvisor.com.vn/Owners';
@@ -12,7 +13,11 @@ const MAX_PAGES = 30; // safety stop per property
 
 const pause = (page) => page.waitForTimeout(1500 + Math.floor(Math.random() * 1000)); // be gentle: a few seconds between pages
 
-exports.listBusinesses = async (page) => {
+// The Owners page is only needed to find the properties, and they rarely change: visit it at most once a week.
+const PROPERTIES_TTL = 7 * 86400000;
+exports.listBusinesses = (page) => diskCache.memo('tripadvisor-properties', PROPERTIES_TTL, () => visitOwners(page));
+
+async function visitOwners(page) {
   cooldown.check('tripadvisor', 'Tripadvisor');
   await page.goto(OWNERS_URL, { waitUntil: 'domcontentloaded' });
   await page.waitForTimeout(5000);
@@ -33,7 +38,7 @@ exports.listBusinesses = async (page) => {
   if (!found.size) throw new CodedError('SELECTOR_CHANGED', 'no Tripadvisor properties on the Owners page');
   const collected_at = new Date().toISOString();
   return [...found.values()].map((b) => ({ ...b, status: 'active', collected_at }));
-};
+}
 
 // Opens one row and returns the text lines of its opened card. An opened row stops being a <button>: it becomes a <div> card that
 // starts with the reviewer name and holds exactly one "Đánh giá từ <date>" line, and the buttons after it shift up by one. So the row
