@@ -2,6 +2,8 @@
 // property's "Guest reviews" page: newest first, 20 per page, and every review carries Agoda's own booking id (BID), so the review
 // identity is that id (no content guessing as with Tripadvisor).
 const { CodedError, clean } = require('./errors');
+const { visibleText } = require('./util');
+const cooldown = require('./cooldown');
 const { hashReview } = require('./reviewUtils');
 const { parseScore, starsFromScore, bidOf, parseReviewedDate } = require('./agodaParse');
 
@@ -15,13 +17,17 @@ const BLOCKED = /Access is temporarily restricted|Access Denied|unusual traffic/
 const pause = (page) => page.waitForTimeout(1500 + Math.floor(Math.random() * 1000)); // be gentle: a few seconds between pages
 
 async function checkSession(page) {
-  const body = (await page.locator('body').innerText().catch(() => '')).normalize('NFC');
-  if (BLOCKED.test(body)) throw new CodedError('AUTH_REQUIRED', 'Agoda đang chặn truy cập. Dừng lại, thử lại sau vài giờ.');
+  const text = await visibleText(page);
+  if (BLOCKED.test(text) || !text.trim()) {
+    cooldown.trip('agoda');
+    throw new CodedError('AUTH_REQUIRED', 'Agoda đang chặn truy cập. Hệ thống tạm dừng vài giờ, không thử lại liên tục.');
+  }
   if ((await page.locator('input[type=password]').count()) || /login|signin|sso/i.test(new URL(page.url()).pathname)) throw new CodedError('AUTH_REQUIRED', 'Chưa đăng nhập Agoda: chạy npm run login -- agoda');
 }
 exports.checkSession = checkSession;
 
 exports.listBusinesses = async (page) => {
+  cooldown.check('agoda', 'Agoda');
   await page.goto(`${PORTAL}/iam/propertysearch`, { waitUntil: 'domcontentloaded' });
   try { await page.waitForSelector('[data-testid="property-search-table-row"]', { timeout: 30000 }); } catch (e) {
     await checkSession(page);
@@ -86,6 +92,7 @@ exports.nextPage = async (page) => {
 
 // Opens a property's reviews. -> false when it has none.
 exports.openReviews = async (page, propertyId) => {
+  cooldown.check('agoda', 'Agoda');
   await page.goto(exports.reviewsUrl(propertyId), { waitUntil: 'domcontentloaded' });
   try { await page.waitForSelector(CARD, { timeout: 30000 }); } catch (e) {
     await checkSession(page);

@@ -28,13 +28,14 @@ const guarded = (fn) => async (...args) => {
 // Queue position and expected posting time for the approved tab (live mode only: dry-run and off never post by themselves).
 const withQueueInfo = async (items) => {
   if (publish.mode() !== 'live') return items.map(shape);
-  const last = await Reply.lastAttemptAt();
+  const [last, postedToday] = await Promise.all([Reply.lastAttemptAt(), Reply.postedSince(publish.startOfToday())]);
+  const left = Math.max(0, publish.DAILY_LIMIT - postedToday);
   let position = 0;
   return items.map((r) => {
     if (!publish.AUTO_PLATFORMS.includes(r.platform)) return { ...shape(r), manual: true }; // not auto-posted: the moderator pastes it on the platform
     if (r.reply_attempts >= queue.MAX_ATTEMPTS) return { ...shape(r), stalled: true };
-    const eta = new Date(queueRules.eta(position, last, queue.GAP_MS)).toISOString();
-    return { ...shape(r), queue_position: ++position, eta };
+    const eta = new Date(queueRules.etaCapped(position, last, queue.GAP_MS, postedToday, publish.DAILY_LIMIT)).toISOString();
+    return { ...shape(r), queue_position: ++position, eta, capped: position > left, daily_limit: publish.DAILY_LIMIT }; // capped: today's quota is used up
   });
 };
 

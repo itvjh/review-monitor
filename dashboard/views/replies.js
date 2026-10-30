@@ -35,6 +35,7 @@ function queueLine(r) {
   if (!AUTO.includes(platOf(r))) { box.append(el('div', 'meta', `Không tự đăng được lên ${platformName(r.platform)}: sao chép nội dung, dán vào trang quản lý rồi bấm "Đã đăng tay".`)); return box; }
   if (posting === 'live') {
     if (r.stalled) box.append(el('div', 'warning error', `Đã thử ${r.reply_attempts} lần không thành công, hàng đợi tạm bỏ qua bài này. Kiểm tra lỗi rồi bấm "Thử lại".`));
+    else if (r.capped) box.append(el('div', 'warning warn', `Đã đủ ${r.daily_limit} phản hồi tự đăng hôm nay (giới hạn REPLY_DAILY_LIMIT trong .env). Hàng đợi #${r.queue_position}, dự kiến đăng khoảng ${new Date(r.eta).toLocaleString('vi-VN', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}.`));
     else box.append(el('div', 'meta', `Hàng đợi #${r.queue_position} · dự kiến đăng khoảng ${hhmm(r.eta)}` + (r.reply_attempts ? ` · đã thử ${r.reply_attempts} lần` : '')));
   } else if (posting === 'dry-run') box.append(el('div', 'meta', 'Chế độ chạy thử: không có gì được đăng thật.'));
   else box.append(el('div', 'meta', 'Đăng tự động đang tắt: hãy đăng tay rồi bấm "Đã đăng tay".'));

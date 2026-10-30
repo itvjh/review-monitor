@@ -13,3 +13,9 @@ exports.screenshot = async (page, label) => {
   await page.screenshot({ path: file, fullPage: true }).catch(() => {});
   return file;
 };
+
+// All visible text of the page and its frames, normalised. Never throws.
+exports.visibleText = async (page) => {
+  const parts = await Promise.all(page.frames().map((f) => f.evaluate(() => (document.body ? document.body.innerText : '')).catch(() => '')));
+  return parts.join('\n').normalize('NFC');
+};

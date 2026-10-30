@@ -5,3 +5,14 @@ exports.waitMs = (lastIso, gapMs, now = Date.now()) => (lastIso ? Math.max(0, ne
 
 // When the queue item at `index` (0 = next) is expected to be posted.
 exports.eta = (index, lastIso, gapMs, now = Date.now()) => now + exports.waitMs(lastIso, gapMs, now) + index * gapMs;
+
+// Same, with the daily limit: only `limit - postedToday` posts are left today; the rest wait for tomorrow (local midnight),
+// `limit` per day, one gap apart.
+exports.etaCapped = (index, lastIso, gapMs, postedToday, limit, now = Date.now()) => {
+  const left = Math.max(0, limit - postedToday);
+  if (index < left) return exports.eta(index, lastIso, gapMs, now);
+  const midnight = new Date(now);
+  midnight.setHours(24, 0, 0, 0);
+  const k = index - left;
+  return midnight.getTime() + Math.floor(k / limit) * 86400000 + (k % limit) * gapMs;
+};

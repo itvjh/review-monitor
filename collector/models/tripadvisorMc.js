@@ -2,20 +2,27 @@
 // newest first, every language, 30 rows per page, exact reply state. Used to read new reviews and to post replies.
 const { CodedError } = require('./errors');
 const { parseRowLines } = require('./tripadvisorParse');
+const { visibleText } = require('./util');
+const cooldown = require('./cooldown');
 
 const MC_URL = (locationId) => `https://www.tripadvisor.com.vn/reviews?locationId=${locationId}&screen=allreviews`;
 const BUBBLES = 'svg[data-automation="bubbleRatingImage"]';
 const BLOCKED = /Access is temporarily restricted|Quyền truy cập .{0,30}bị hạn chế/i;
 const EMPTY = /0 trong số 0 đánh giá|Chưa có đánh giá|chưa có đánh giá/;
 
+// Blocked ("Access is temporarily restricted", or an empty page): pause every visit to the site for hours, see cooldown.js.
 async function checkSession(page) {
-  const body = await page.locator('body').innerText().catch(() => '');
-  if (BLOCKED.test(body)) throw new CodedError('AUTH_REQUIRED', 'Tripadvisor đang chặn truy cập tạm thời. Dừng lại, thử lại sau vài giờ.');
+  const text = await visibleText(page);
+  if (BLOCKED.test(text) || !text.trim()) {
+    cooldown.trip('tripadvisor');
+    throw new CodedError('AUTH_REQUIRED', 'Tripadvisor đang chặn truy cập tạm thời. Hệ thống tạm dừng vài giờ, không thử lại liên tục.');
+  }
   if ((await page.locator('input[type=password]').count()) || /login|registration/i.test(page.url())) throw new CodedError('AUTH_REQUIRED', 'Chưa đăng nhập Tripadvisor: chạy npm run login -- tripadvisor');
 }
 
 // Opens a property's list. -> false when the property has no reviews at all.
 async function openList(page, locationId) {
+  cooldown.check('tripadvisor', 'Tripadvisor');
   await page.goto(MC_URL(locationId), { waitUntil: 'domcontentloaded' });
   try { await page.waitForSelector(BUBBLES, { timeout: 25000 }); } catch (e) {
     await checkSession(page);

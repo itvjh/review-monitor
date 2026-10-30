@@ -5,3 +5,4 @@ collector/screenshots/
 node_modules/
 collector/node_modules/
 *.log
+collector/blocked.json

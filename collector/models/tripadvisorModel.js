@@ -3,6 +3,7 @@
 // its content (tripadvisorParse.contentHash) and opened (expanded) only when it is new.
 const { CodedError, clean } = require('./errors');
 const Mc = require('./tripadvisorMc');
+const cooldown = require('./cooldown');
 const { parseDate, contentHash, parseOpened } = require('./tripadvisorParse');
 
 const OWNERS_URL = 'https://www.tripadvisor.com.vn/Owners';
@@ -12,6 +13,7 @@ const MAX_PAGES = 30; // safety stop per property
 const pause = (page) => page.waitForTimeout(1500 + Math.floor(Math.random() * 1000)); // be gentle: a few seconds between pages
 
 exports.listBusinesses = async (page) => {
+  cooldown.check('tripadvisor', 'Tripadvisor');
   await page.goto(OWNERS_URL, { waitUntil: 'domcontentloaded' });
   await page.waitForTimeout(5000);
   await Mc.checkSession(page);

@@ -1,7 +1,7 @@
 // Posting queue: spacing rule, one-at-a-time worker and bulk approval filter. Everything is faked: no database, no browser.
 const assert = require('assert');
 const http = require('http');
-const { waitMs, eta } = require('../dashboard/models/queueRules');
+const { waitMs, eta, etaCapped } = require('../dashboard/models/queueRules');
 const { createQueue } = require('../dashboard/models/queue');
 const rules = require('../dashboard/models/replyRules');
 const { handle } = require('../dashboard/routes');
@@ -20,6 +20,17 @@ assert.strictEqual(eta(0, null, GAP, NOW), NOW);
 assert.strictEqual(eta(2, null, GAP, NOW), NOW + 2 * GAP);
 assert.strictEqual(eta(0, ago(60000), GAP, NOW), NOW + 4 * 60000);
 assert.strictEqual(eta(1, ago(60000), GAP, NOW), NOW + 9 * 60000);
+
+// the daily limit: with the day's quota used up, a queued reply waits for tomorrow (local midnight), `limit` per day
+const day = new Date(NOW);
+day.setHours(24, 0, 0, 0);
+const MID = day.getTime();
+assert.strictEqual(etaCapped(0, null, GAP, 0, 10, NOW), NOW); // quota free: same as eta
+assert.strictEqual(etaCapped(2, null, GAP, 8, 10, NOW), MID); // 2 left today (index 0, 1): the 3rd goes to tomorrow
+assert.strictEqual(etaCapped(0, null, GAP, 10, 10, NOW), MID); // all used
+assert.strictEqual(etaCapped(1, null, GAP, 10, 10, NOW), MID + GAP);
+assert.strictEqual(etaCapped(10, null, GAP, 10, 10, NOW), MID + 86400000); // the 11th waiting goes to the day after tomorrow
+assert.strictEqual(etaCapped(0, null, GAP, 12, 10, NOW), MID); // more posted than the limit (limit lowered): still no negative quota
 
 // bulk approval: only clean replies go through; anything flagged is left for a person
 const good = 'Cảm ơn quý khách đã lựa chọn chúng tôi, hẹn gặp lại quý khách trong thời gian tới.';
