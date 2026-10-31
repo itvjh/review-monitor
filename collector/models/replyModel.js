@@ -6,7 +6,7 @@ const SEL = require('./selectors');
 const { CodedError } = require('./errors');
 const { isAuthPage, setMaxRows, goNext } = require('./browser');
 const { sameName } = require('./replyPolicy');
-const { sameReply, screenshot } = require('./util');
+const { squash, sameReply, screenshot } = require('./util');
 
 const TAG = 'data-gbp-target';
 
@@ -64,7 +64,7 @@ exports.post = async (page, { reviewId, businessIdentifier, reviewerName, text, 
   if (found.has_reply) {
     // Idempotent: a retry after an unconfirmed post just recognises our own reply and reports success. Someone else's reply is never touched.
     if (sameReply(found.reply_text, text)) return { posted: true, dry_run: false, verified: true, already: true };
-    throw new CodedError('ALREADY_REPLIED', 'Review này đã có phản hồi khác của chủ sở hữu trên Google. Không đăng.');
+    throw new CodedError('ALREADY_REPLIED', `Review này đã có phản hồi khác của chủ sở hữu trên Google. Không đăng. Phản hồi hiện có: "${squash(found.reply_text).slice(0, 80)}"`);
   }
 
   const card = page.locator(`[${TAG}="1"]`);

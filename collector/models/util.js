@@ -5,12 +5,14 @@ const cfg = require('../config');
 
 // Text as people see it: composed accents (Tripadvisor sends decomposed Vietnamese), one space between words.
 exports.squash = (s) => String(s || '').normalize('NFC').replace(/\s+/g, ' ').trim();
-// Is `shown` (a reply as read from the page) our `text`? Google shows a long reply cut to its first line plus "…" and a "Xem toàn bộ" link, so a cut copy that is the start of ours counts too.
+// Is `shown` (a reply as read from the page) our `text`? Spaces are ignored: textContent drops the line breaks of a reply ("Quang,Thank you").
+// Google also shows a long reply cut to its first line plus "…" and a "Xem toàn bộ" link, so a cut copy that is the start of ours counts too.
 exports.sameReply = (shown, text) => {
-  const s = exports.squash(shown), t = exports.squash(text);
-  if (s.includes(t.slice(0, 30))) return true;
-  const cut = s.replace(/\s*(…|\.\.\.)?\s*(Xem toàn bộ bài đánh giá|See full review|Xem thêm|See more|More|Thêm)?$/i, '');
-  return cut !== s && cut.length >= 20 && t.startsWith(cut);
+  const bare = (x) => exports.squash(x).replace(/ /g, '');
+  const s = exports.squash(shown), t = bare(text);
+  if (bare(s).includes(t.slice(0, 25))) return true;
+  const cut = bare(s.replace(/\s*(…|\.\.\.)?\s*(Xem toàn bộ bài đánh giá|See full review|Xem thêm|See more|More|Thêm)?$/i, ''));
+  return cut !== bare(s) && cut.length >= 18 && t.startsWith(cut);
 };
 
 // Saves a full-page screenshot for the moderator's eyes and returns its path. Never throws.

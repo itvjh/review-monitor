@@ -23,6 +23,7 @@ const ours = 'Dear Mr./Ms. Vinh Quang,\n\nThank you very much for taking the tim
 assert.strictEqual(sameReply(ours, ours), true);
 assert.strictEqual(sameReply('Dear Mr./Ms. Vinh Quang,… Xem toàn bộ bài đánh giá', ours), true);
 assert.strictEqual(sameReply('Dear Mr./Ms. Vinh Quang,...', ours), true);
+assert.strictEqual(sameReply('Dear Mr./Ms. Vinh Quang,Thank you very much for taking the time to leave us a review.', ours), true); // page text without the line breaks
 assert.strictEqual(sameReply('Dear Mr./Ms. Vinh Quang, Different text entirely', ours), false);
 assert.strictEqual(sameReply('Dear Mr./Ms. Vinh Quang,', ours), false); // not cut by Google: a different, shorter reply
 assert.strictEqual(sameReply('Hi…', ours), false); // too short to prove anything
