@@ -1,10 +1,12 @@
-// Browser session layer: persistent Chrome profile, domain allow-list, retries, screenshots, shared page helpers.
+// Browser session layer: personal or persistent Chrome, domain allow-list, retries, screenshots, shared page helpers.
 const fs = require('fs');
 const path = require('path');
 const { chromium } = require('playwright-core');
 const cfg = require('../config');
 const SEL = require('./selectors');
 const { classify, CodedError } = require('./errors');
+const sessions = require('./browserSession').createSessions(chromium, cfg);
+exports.disconnect = () => sessions.disconnect();
 
 let queue = Promise.resolve(); // one browser at a time: the profile dir is locked per instance
 let pending = 0; // jobs running or waiting (a crawl, a reply...)
@@ -23,16 +25,16 @@ const isAuthPage = async (page) => {
 exports.isAuthPage = isAuthPage;
 
 async function withPage(fn, timeoutMs) {
-  const ctx = await chromium.launchPersistentContext(cfg.PROFILE, { channel: 'chrome', headless: cfg.HEADLESS, viewport: { width: 1400, height: 900 } });
+  const session = await sessions.open();
   let page;
   try {
-    await ctx.route('**/*', (route) => {
+    page = session.page;
+    await page.route('**/*', (route) => {
       const req = route.request();
       const host = new URL(req.url()).hostname;
       const ok = req.isNavigationRequest() ? cfg.NAV_HOST.test(host) : cfg.RES_HOST.test(host) || req.url().startsWith('data:');
       return ok ? route.continue() : route.abort();
     });
-    page = ctx.pages()[0] || (await ctx.newPage());
     page.setDefaultTimeout(30000);
     let timer;
     const budget = new Promise((_, reject) => { timer = setTimeout(() => reject(new CodedError('BROWSER_TIMEOUT', `Quá ${Math.round(timeoutMs / 1000)} giây, đã dừng.`)), timeoutMs); });
@@ -46,7 +48,9 @@ async function withPage(fn, timeoutMs) {
     }
     throw err;
   } finally {
-    await Promise.race([ctx.close(), new Promise((ok) => setTimeout(ok, 15000))]); // never wait forever for Chrome to exit
+    let timer;
+    try { await Promise.race([session.close(), new Promise((ok) => { timer = setTimeout(ok, 15000); })]); }
+    finally { clearTimeout(timer); }
   }
 }
 

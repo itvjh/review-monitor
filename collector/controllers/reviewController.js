@@ -6,16 +6,8 @@ const int = (v, def, lo, hi) => (Number.isInteger(v) && v >= lo && v <= hi ? v :
 
 // POST /reviews  { limit, stopAfterKnown, known: [review_hash] }  (trust boundary: validate before use)
 exports.index = async (req, res, body) => {
-  let input;
-  try { input = JSON.parse(body || '{}'); } catch (e) { return view.badRequest(res, 'invalid JSON body'); }
-  if (input.known !== undefined && !(Array.isArray(input.known) && input.known.every((h) => typeof h === 'string'))) {
-    return view.badRequest(res, 'known must be an array of strings');
-  }
-  const opts = {
-    limit: int(input.limit, 200, 1, 5000),
-    stopAfterKnown: int(input.stopAfterKnown, 10, 1, 100),
-    known: (input.known || []).slice(0, 5000),
-  };
+  let opts;
+  try { opts = require('./readOptions').parse(body, 200, 5000); } catch (e) { return view.badRequest(res, e.message); }
   const out = await serial(() => run((page) => Review.read(page, opts)));
   view.ok(res, out);
 };

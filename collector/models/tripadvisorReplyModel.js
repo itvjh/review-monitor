@@ -1,3 +1,4 @@
+const Locator = require('./reviewLocator');
 // Posts ONE approved reply to ONE Tripadvisor review through the owner's Management Center ("Đánh giá > Tất cả đánh giá").
 // Same safety rules as the Google flow (replyModel.js): find the row, refuse anything ambiguous or already answered,
 // no retry on the post itself, and in live mode confirm from a fresh page load that the reply really is there.
@@ -22,21 +23,18 @@ async function tagRow(page, want) {
 }
 
 // Loads the Management Center list fresh and pages until the row is found. -> { count, replied } (count 0 = not found).
-async function locate(page, want, maxPages) {
-  if (!(await Mc.openList(page, want.locationId))) return { count: 0, replied: false };
-  for (let p = 0; p < maxPages; p++) {
-    const found = await tagRow(page, want);
-    if (found.count) return found;
-    if (!(await Mc.nextPage(page))) break;
-  }
-  return { count: 0, replied: false };
+async function locate(page, want, maxPages, sourceLocator) {
+  return await Locator.seek({maxPages,hint:Locator.pageHint(sourceLocator,want.locationId,sourceLocator?.review_id,maxPages),
+    open:()=>Mc.openList(page,want.locationId),next:()=>Mc.nextPage(page),
+    find:async()=>{const found=await tagRow(page,want);return found.count?found:null;},
+  }) || {count:0,replied:false};
 }
 
 // retry: true when an earlier attempt for this reply already ran (its answer may have been lost after the post went through).
-exports.post = async (page, { businessIdentifier, reviewerName, title, body, rating, text, retry, dryRun }) => {
+exports.post = async (page, { businessIdentifier, reviewerName, title, body, rating, text, retry, dryRun, sourceLocator }) => {
   const want = { locationId: businessIdentifier, name: reviewerName, title, body, rating };
   const head = squash(text).slice(0, 30);
-  const found = await locate(page, want, MAX_PAGES);
+  const found = await locate(page, want, MAX_PAGES, sourceLocator);
   if (found.count === 0) throw new CodedError('REVIEW_NOT_FOUND', `Không tìm thấy review này trong ${MAX_PAGES * 30} đánh giá mới nhất của Tripadvisor (có thể bị xóa hoặc quá cũ).`);
   if (found.count > 1) throw new CodedError('REPLY_MISMATCH', 'Có nhiều hơn một review trùng tiêu đề, nội dung và số sao. Không đăng, hãy đăng tay.');
 

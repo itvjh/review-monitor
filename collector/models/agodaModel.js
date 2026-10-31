@@ -1,3 +1,4 @@
+const Directory = require('./businessDirectory');
 // Read-only Agoda collector (Partner Portal, https://portal.agoda.com). Properties come from the property search page, reviews from each
 // property's "Guest reviews" page: newest first, 20 per page, and every review carries Agoda's own booking id (BID), so the review
 // identity is that id (no content guessing as with Tripadvisor).
@@ -109,8 +110,10 @@ async function readProperty(page, biz, { limit, stopAfterKnown, known }) {
   if (!(await exports.openReviews(page, biz.business_identifier))) return reviews;
   let knownRun = 0;
   for (let p = 0; p < MAX_PAGES; p++) {
-    for (const c of await exports.readCards(page)) {
-      if (!c.bid || !c.score) throw new CodedError('SELECTOR_CHANGED', `unreadable Agoda review card in ${biz.business_name}`);
+    let cards = await exports.readCards(page);
+    if (cards.some((c) => !c.bid || !c.score)) { await page.waitForTimeout(2000); cards = await exports.readCards(page); } // a card can be on screen before its content renders
+    for (const c of cards) {
+      if (!c.bid || !c.score) throw new CodedError('SELECTOR_CHANGED', `unreadable Agoda review card #${c.index} (missing ${!c.bid ? 'BID' : 'score'}) in ${biz.business_name}`);
       const review = { platform: 'agoda', business_identifier: biz.business_identifier, review_id: c.bid };
       const hash = hashReview(review);
       if (known.has(hash)) { if (++knownRun >= stopAfterKnown) return reviews; continue; }
@@ -132,6 +135,7 @@ async function readProperty(page, biz, { limit, stopAfterKnown, known }) {
         review_url: exports.reviewsUrl(biz.business_identifier),
         review_hash: hash,
         raw_score: parseScore(c.score), // Agoda's own 0-10 score
+        source_locator: { property_id: biz.business_identifier, review_id: c.bid, page: p, kind: 'native' },
       });
       if (reviews.length >= limit) return reviews;
     }
@@ -142,9 +146,9 @@ async function readProperty(page, biz, { limit, stopAfterKnown, known }) {
 }
 
 // One browser session: every property in turn. A failing property is reported in `errors` and does not stop the others.
-exports.read = async (page, { limit, stopAfterKnown = 10, known }) => {
+exports.read = async (page, { limit, stopAfterKnown = 10, known, businesses: supplied }) => {
   const knownSet = new Set(known);
-  const businesses = await exports.listBusinesses(page);
+  const businesses = supplied || await Directory.get('agoda', () => exports.listBusinesses(page));
   const reviews = [];
   const errors = [];
   for (const biz of businesses) {
@@ -154,5 +158,6 @@ exports.read = async (page, { limit, stopAfterKnown = 10, known }) => {
     }
     await pause(page);
   }
+  reviews.sort((a,b) => Directory.compareIds(a.business_identifier,b.business_identifier) || Directory.compareIds(a.review_id || a.review_hash,b.review_id || b.review_hash));
   return { scanned: reviews.length, reviews, errors };
 };

@@ -1,10 +1,10 @@
+const Directory = require('./businessDirectory');
 // Read-only Tripadvisor collector. Properties come from the owner page (Owners), reviews from each property's Management Center
 // list (tripadvisorMc.js): newest first, every language, nothing hidden. A row has no review id, so a review is identified by
 // its content (tripadvisorParse.contentHash) and opened (expanded) only when it is new.
 const { CodedError, clean } = require('./errors');
 const Mc = require('./tripadvisorMc');
 const cooldown = require('./cooldown');
-const diskCache = require('./diskCache');
 const { parseDate, contentHash, parseOpened } = require('./tripadvisorParse');
 
 const OWNERS_URL = 'https://www.tripadvisor.com.vn/Owners';
@@ -13,11 +13,7 @@ const MAX_PAGES = 30; // safety stop per property
 
 const pause = (page) => page.waitForTimeout(1500 + Math.floor(Math.random() * 1000)); // be gentle: a few seconds between pages
 
-// The Owners page is only needed to find the properties, and they rarely change: visit it at most once a week.
-const PROPERTIES_TTL = 7 * 86400000;
-exports.listBusinesses = (page) => diskCache.memo('tripadvisor-properties', PROPERTIES_TTL, () => visitOwners(page));
-
-async function visitOwners(page) {
+exports.listBusinesses = async (page) => {
   cooldown.check('tripadvisor', 'Tripadvisor');
   await page.goto(OWNERS_URL, { waitUntil: 'domcontentloaded' });
   await page.waitForTimeout(5000);
@@ -38,7 +34,7 @@ async function visitOwners(page) {
   if (!found.size) throw new CodedError('SELECTOR_CHANGED', 'no Tripadvisor properties on the Owners page');
   const collected_at = new Date().toISOString();
   return [...found.values()].map((b) => ({ ...b, status: 'active', collected_at }));
-}
+};
 
 // Opens one row and returns the text lines of its opened card. An opened row stops being a <button>: it becomes a <div> card that
 // starts with the reviewer name and holds exactly one "Đánh giá từ <date>" line, and the buttons after it shift up by one. So the row
@@ -87,7 +83,8 @@ async function readProperty(page, biz, { limit, stopAfterKnown, known }, problem
       const date_text = opened.date_text || row.date_text;
       reviews.push({
         platform: 'tripadvisor',
-        review_id: '',
+        review_id: hash,
+        source_locator: { property_id: biz.business_identifier, review_id: hash, page: p, kind: 'content' },
         business_identifier: biz.business_identifier,
         reviewer_name: row.name,
         rating: row.rating,
@@ -109,9 +106,9 @@ async function readProperty(page, biz, { limit, stopAfterKnown, known }, problem
 
 // One browser session: every property in turn, up to `limit` NEW reviews EACH. A failing property is reported in `errors`
 // and does not stop the others.
-exports.read = async (page, { limit, stopAfterKnown = 10, known }) => {
+exports.read = async (page, { limit, stopAfterKnown = 10, known, businesses: supplied }) => {
   const knownSet = new Set(known);
-  const businesses = await exports.listBusinesses(page);
+  const businesses = supplied || await Directory.get('tripadvisor', () => exports.listBusinesses(page));
   const reviews = [];
   const errors = [];
   for (const biz of businesses) {
@@ -125,5 +122,6 @@ exports.read = async (page, { limit, stopAfterKnown = 10, known }) => {
     }
     await pause(page);
   }
+  reviews.sort((a,b) => Directory.compareIds(a.business_identifier,b.business_identifier) || Directory.compareIds(a.review_id || a.review_hash,b.review_id || b.review_hash));
   return { scanned: reviews.length, reviews, errors };
 };

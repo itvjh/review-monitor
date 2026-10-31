@@ -16,6 +16,8 @@ exports.commonProblem = (i) => (/^\d{6,}$/.test(String(i.business_identifier)) &
 exports.replyEndpoint = ({ validate, post }) => async (req, res, body) => {
   let i;
   try { i = JSON.parse(body || '{}'); } catch (e) { return view.badRequest(res, 'invalid JSON body'); }
+  if (!i || typeof i !== 'object' || Array.isArray(i)) return view.badRequest(res, 'body must be an object');
+  if (i.source_locator !== undefined && i.source_locator !== null && (typeof i.source_locator !== 'object' || Array.isArray(i.source_locator))) return view.badRequest(res, 'invalid source_locator');
   const problem = exports.commonProblem(i) || validate(i);
   if (problem) return view.badRequest(res, problem);
 

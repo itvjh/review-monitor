@@ -16,3 +16,14 @@ assert.notStrictEqual(hashReview(a), hashReview({ ...a, rating: 4 }));
 assert.notStrictEqual(hashReview(a), hashReview({ ...a, business_identifier: '2' }));
 assert.strictEqual(hashReview({ ...a, review_id: 'x' }), hashReview({ ...a, review_id: 'x', rating: 1 }));
 console.log('lib ok');
+
+// sameReply: the full reply, or Google's cut first line + "…", is ours; another reply is not.
+const { sameReply } = require('../collector/models/util');
+const ours = 'Dear Mr./Ms. Vinh Quang,\n\nThank you very much for taking the time to leave us a review.';
+assert.strictEqual(sameReply(ours, ours), true);
+assert.strictEqual(sameReply('Dear Mr./Ms. Vinh Quang,… Xem toàn bộ bài đánh giá', ours), true);
+assert.strictEqual(sameReply('Dear Mr./Ms. Vinh Quang,...', ours), true);
+assert.strictEqual(sameReply('Dear Mr./Ms. Vinh Quang, Different text entirely', ours), false);
+assert.strictEqual(sameReply('Dear Mr./Ms. Vinh Quang,', ours), false); // not cut by Google: a different, shorter reply
+assert.strictEqual(sameReply('Hi…', ours), false); // too short to prove anything
+assert.strictEqual(sameReply('', ours), false);

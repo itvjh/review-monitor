@@ -17,9 +17,16 @@ module.exports = {
     name: 'Tripadvisor', color: '#00785a', tint: '#e0f5ee',
     login: 'npm run login -- tripadvisor', ownerUrl: 'https://www.tripadvisor.com.vn/Owners', autoReply: true,
     workflow: {
-      id: 'tripadvisorReviewMonitor1', name: 'Tripadvisor Review Monitor', file: 'tripadvisor-reviews.json', cron: '30 9 */2 * *', // every other day: fewer visits, fewer chances to be taken for a bot
-      
+      id: 'tripadvisorReviewMonitor1', name: 'Tripadvisor Review Monitor', file: 'tripadvisor-reviews.json', cron: '30 9 * * *',
       businesses: '/tripadvisor/businesses', reviews: '/tripadvisor/reviews', perRun: 5, perRunNote: 'NEW (not yet stored) reviews taken per property per run, newest first; raise it once for a backfill',
+    },
+  },
+  traveloka: {
+    name: 'Traveloka', color: '#008acb', tint: '#e0f4ff',
+    login: 'npm run login -- traveloka', ownerUrl: 'https://tera.traveloka.com/vi-vn/guest-review/', autoReply: true,
+    workflow: {
+      id: 'travelokaReviewMonitor1', name: 'Traveloka Review Monitor', file: 'traveloka-reviews.json', cron: '30 10 * * *',
+      businesses: '/traveloka/businesses', reviews: '/traveloka/reviews', perRun: 5, perRunNote: '5 new reviews per property, newest first',
     },
   },
   agoda: {

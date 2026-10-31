@@ -8,12 +8,17 @@ const review = require('./controllers/reviewController');
 const reply = require('./controllers/replyController');
 const tripadvisor = require('./controllers/tripadvisorController');
 const agoda = require('./controllers/agodaController');
+const traveloka = require('./controllers/travelokaController');
 const view = require('./views/json');
 const browser = require('./models/browser');
+const browserController = require('./controllers/browserController');
 
 // "METHOD path" -> controller(req, res, body)
 const routes = {
-  'GET /health': (req, res) => view.health(res, browser.pendingJobs()),
+  'GET /health': (req, res) => view.health(res, browser.pendingJobs(), cfg.BROWSER_MODE),
+  'POST /directory/refresh': require('./controllers/directoryController').refresh,
+  'GET /directory': require('./controllers/directoryController').index,
+  'GET /browser/check': browserController.check,
   'GET /businesses': business.index,
   'POST /reviews': review.index,
   'POST /reply': reply.post,
@@ -23,6 +28,9 @@ const routes = {
   'GET /agoda/businesses': agoda.businesses,
   'POST /agoda/reviews': agoda.reviews,
   'POST /agoda/reply': agoda.reply,
+  'GET /traveloka/businesses': traveloka.businesses,
+  'POST /traveloka/reviews': traveloka.reviews,
+  'POST /traveloka/reply': traveloka.reply,
 };
 
 // Reads the body with a size and time limit; a client that stalls or floods is dropped.
@@ -42,4 +50,4 @@ http.createServer(async (req, res) => {
   try {
     await controller(req, res, req.method === 'POST' ? await readBody(req) : '');
   } catch (e) { if (!res.headersSent) view.fail(res, classify(e)); }
-}).listen(cfg.PORT, '127.0.0.1', () => console.log(`collector on http://127.0.0.1:${cfg.PORT} (headless=${cfg.HEADLESS})`));
+}).listen(cfg.PORT, '127.0.0.1', () => console.log(`collector on http://127.0.0.1:${cfg.PORT} (browser=${cfg.BROWSER_MODE}, headless=${cfg.HEADLESS})`));

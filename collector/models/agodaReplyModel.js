@@ -1,3 +1,4 @@
+const Locator = require('./reviewLocator');
 // Posts ONE approved reply to ONE Agoda review through the Partner Portal ("Guest reviews" > Reply). Same safety rules as the other
 // platforms: find the review by its booking id (BID, exact), refuse if it is not found, already answered or if the dialog that opens
 // is for another booking, never retry the submit, and confirm from a fresh page load.
@@ -13,21 +14,22 @@ const SUBMIT = '[data-element-name="ycs-review-detail-submit-reply-button"]';
 
 // Loads the property's reviews fresh and pages until the card with this booking id is found.
 // -> { index, replied, reply } (index = card tag), or null.
-async function locate(page, propertyId, bid, maxPages) {
-  if (!(await Agoda.openReviews(page, propertyId))) return null;
-  for (let p = 0; p < maxPages; p++) {
-    const hits = (await Agoda.readCards(page)).filter((c) => c.bid === bid); // exact id, not a prefix
-    if (hits.length > 1) throw new CodedError('REPLY_MISMATCH', `Có nhiều thẻ review trùng mã đặt phòng ${bid}. Không đăng.`);
-    if (hits.length === 1) return { index: hits[0].index, replied: hits[0].replied, reply: hits[0].reply };
-    if (!(await Agoda.nextPage(page))) break;
-  }
-  return null;
+async function locate(page, propertyId, bid, maxPages, sourceLocator) {
+  return Locator.seek({
+    maxPages, hint: Locator.pageHint(sourceLocator, propertyId, bid, maxPages),
+    open: () => Agoda.openReviews(page, propertyId), next: () => Agoda.nextPage(page),
+    find: async () => {
+      const hits = (await Agoda.readCards(page)).filter(c => c.bid === bid);
+      if (hits.length > 1) throw new CodedError('REPLY_MISMATCH', 'Có nhiều review trùng BID. Không đăng.');
+      return hits.length ? hits[0] : null;
+    },
+  });
 }
 
 // retry: true when an earlier attempt for this reply already ran (its answer may have been lost after the post went through).
-exports.post = async (page, { propertyId, bid, language, text, retry, dryRun }) => {
+exports.post = async (page, { propertyId, bid, language, text, retry, dryRun, sourceLocator }) => {
   const head = squash(text).slice(0, 30);
-  const found = await locate(page, propertyId, bid, MAX_PAGES);
+  const found = await locate(page, propertyId, bid, MAX_PAGES, sourceLocator);
   if (!found) throw new CodedError('REVIEW_NOT_FOUND', `Không tìm thấy review (mã đặt phòng ${bid}) trong ${MAX_PAGES * 20} đánh giá mới nhất của Agoda.`);
   if (found.replied) {
     // Idempotent: a retry after an unconfirmed post recognises our own reply. Someone else's reply is never touched.
