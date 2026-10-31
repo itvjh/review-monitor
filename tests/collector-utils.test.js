@@ -28,3 +28,7 @@ assert.strictEqual(sameReply('Dear Mr./Ms. Vinh Quang, Different text entirely',
 assert.strictEqual(sameReply('Dear Mr./Ms. Vinh Quang,', ours), false); // not cut by Google: a different, shorter reply
 assert.strictEqual(sameReply('Hi…', ours), false); // too short to prove anything
 assert.strictEqual(sameReply('', ours), false);
+
+// Google feed dates: "2 thg 5, 2022" is absolute Vietnamese, used by the GOOGLE_SINCE cut-off.
+assert.strictEqual(normalizeDate('2 thg 5, 2022', now), '2022-05-02');
+assert.strictEqual(normalizeDate('18 tuần trước', now), '2026-06-19');

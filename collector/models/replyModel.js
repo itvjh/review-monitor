@@ -22,12 +22,12 @@ const tagCard = (page, id) => page.$$eval(SEL.card, (els, a) => {
   const who = c.querySelector(a.reviewer);
   const reply = c.querySelector(a.fullReply) || c.querySelector(a.reply);
   return {
-    business_identifier: r.getAttribute('data-listing-id') || (bizHref.match(/\/n\/(\d+)/) || [])[1] || a.propertyId,
+    business_identifier: (bizHref.match(/\/n\/(\d+)/) || [])[1] || (r.getAttribute('data-listing-id') ? BigInt.asUintN(64, BigInt(r.getAttribute('data-listing-id'))).toString() : ''),
     reviewer_name: who ? who.innerText.replace(/open_in_new/g, '').trim() : '',
     has_reply: Boolean(reply),
     reply_text: reply ? reply.textContent : '',
   };
-}, { id, propertyId: (new URL(page.url()).pathname.match(/\/n\/(\d+)\/reviews/) || [])[1] || '', tag: TAG, card: SEL.card, biz: SEL.inPage.biz, reviewer: SEL.inPage.reviewer, reply: SEL.inPage.reply, fullReply: SEL.inPage.fullReply });
+}, { id, tag: TAG, card: SEL.card, biz: SEL.inPage.biz, reviewer: SEL.inPage.reviewer, reply: SEL.inPage.reply, fullReply: SEL.inPage.fullReply });
 
 // Loads the feed fresh (the page does not refresh itself after a post) and pages through it until the card shows up.
 // -> { card, pageIndex } or null. The card gets the TAG attribute so callers can click inside it.
@@ -35,7 +35,7 @@ async function locate(page, reviewId, maxPages, businessIdentifier, sourceLocato
   return Locator.seek({
     hint: Locator.pageHint(sourceLocator, businessIdentifier, reviewId, maxPages), maxPages,
     open: async () => {
-      await page.goto(SEL.propertyReviewsUrl(businessIdentifier), { waitUntil: 'domcontentloaded' });
+      await page.goto(SEL.reviewsUrl, { waitUntil: 'domcontentloaded' });
       try { await page.waitForSelector(SEL.card); } catch (e) {
         if (await isAuthPage(page)) throw new CodedError('AUTH_REQUIRED');
         throw new CodedError('SELECTOR_CHANGED', 'no review cards on property reviews page');
@@ -55,7 +55,7 @@ exports.sendButton = sendButton;
 const shot = (page, label) => screenshot(page, 'reply-' + label);
 
 exports.post = async (page, { reviewId, businessIdentifier, reviewerName, text, dryRun, sourceLocator }) => {
-  const loc = await locate(page, reviewId, 20, businessIdentifier, sourceLocator); // newest first; ~1000 reviews at most
+  const loc = await locate(page, reviewId, 20, businessIdentifier, sourceLocator); // newest first, all locations mixed; ~1000 reviews at most
   if (!loc) throw new CodedError('REVIEW_NOT_FOUND', 'Không tìm thấy review này trên Google (có thể đã bị xóa hoặc quá cũ).');
   const { card: found } = loc;
   if (found.business_identifier !== String(businessIdentifier) || !sameName(found.reviewer_name, reviewerName)) {

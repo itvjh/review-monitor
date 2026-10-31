@@ -3,7 +3,7 @@
 module.exports = {
   profileLink: 'a[href*="/n/"][href*="/profile"]',
   locationsUrl: 'https://business.google.com/locations',
-  propertyReviewsUrl: (id) => `https://www.google.com/local/business/${id}/customers/reviews?knm=0&ih=lu&origin=https%3A%2F%2Fwww.google.com&hl=vi&dcs=1`,
+  reviewsUrl: 'https://business.google.com/reviews', // all locations, newest first; reading and replying both use it ("/n/{id}/reviews" redirects to a search page)
   card: '[data-review-id]',
   rowsBox: '[role=listbox]:has([role=option][data-value="50"])',
   next: 'button:has(i:text("navigate_next"))',
@@ -15,10 +15,10 @@ module.exports = {
     stars: '.HYsjPc > span:first-child > span',
     starFilled: 'MOLvNc',
     date: '.HYsjPc .zWmYWd, article .KEfuhb',
-    text: 'blockquote.rSdjR, article #TBiyHc .Fv38Af [jsname="lvvS4b"]',
-    fullText: 'article #TBiyHc .Fv38Af [jsname="PBWx0c"]',
-    reply: 'blockquote.Q9ktHb, .UP87Yb .uZ1mGe [jsname="lvvS4b"]',
-    fullReply: '.UP87Yb .uZ1mGe [jsname="PBWx0c"]',
+    text: 'blockquote.rSdjR', // holds a short span plus a hidden full one (QUIPvd) when the review is long
+    fullText: 'blockquote.rSdjR [jsname="QUIPvd"]',
+    reply: 'blockquote.Q9ktHb',
+    fullReply: 'blockquote.Q9ktHb [jsname="QUIPvd"]',
   },
   // reply editor (Vietnamese and English UI). Calibrated 2026-10-24: unanswered cards have a "Trả lời" button; it opens one textarea.
   replyButton: /Trả lời|Reply/i,

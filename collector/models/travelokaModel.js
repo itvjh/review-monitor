@@ -9,13 +9,15 @@ const REVIEWS_URL = 'https://tera.traveloka.com/vi-vn/guest-review/';
 const PROPERTY_CARD = '[data-testid^="property-card-"]';
 exports.PROPERTY_URL = PROPERTY_URL;
 exports.REVIEWS_URL = REVIEWS_URL;
+// A count taken while the page is navigating throws (an expired session goes /logout/ -> /login/ in about 15 s): treat it as "not there yet".
+const count = (locator) => locator.count().catch(() => 0);
 async function checkSession(page) {
   const text = await visibleText(page);
   if (/access denied|unusual activity|temporarily restricted|verify you are human|captcha/i.test(text)) {
     cooldown.trip('traveloka');
     throw new CodedError('AUTH_REQUIRED', 'Traveloka yêu cầu xác minh hoặc chặn truy cập. Hệ thống đã tạm dừng.');
   }
-  if (/login|sign-in|signin/i.test(new URL(page.url()).pathname) || await page.locator('input[type=password]').count()) throw new CodedError('AUTH_REQUIRED', 'Đăng nhập Traveloka trong Chrome cá nhân: npm run login -- traveloka');
+  if (/login|sign-in|signin/i.test(new URL(page.url()).pathname) || await count(page.locator('input[type=password]'))) throw new CodedError('AUTH_REQUIRED', 'Đăng nhập Traveloka trong Chrome cá nhân: npm run login -- traveloka');
 }
 exports.checkSession = checkSession;
 const LOGIN_PATH = /login|sign-in|signin/i;
@@ -55,9 +57,9 @@ async function openProperties(page) {
   cooldown.check('traveloka', 'Traveloka');
   await page.goto(PROPERTY_URL, { waitUntil: 'domcontentloaded' });
   const cards = page.locator(PROPERTY_CARD), password = page.locator('input[type=password]');
-  for (let i = 0; i < 60 && !await cards.count() && !await password.count(); i++) await page.waitForTimeout(500); // cards or a login form, whichever comes first
+  for (let i = 0; i < 60 && !await count(cards) && !await count(password); i++) await page.waitForTimeout(500); // cards or a login form, whichever comes first
   if (await autoLogin(page)) await page.goto(PROPERTY_URL, { waitUntil: 'domcontentloaded' });
-  else if (await password.count()) await checkSession(page); // still on the login form: report it now instead of after 30 s
+  else if (await count(password)) await checkSession(page); // still on the login form: report it now instead of after 30 s
   try { await cards.first().waitFor({ state: 'visible', timeout: 30000 }); }
   catch { await checkSession(page); throw new CodedError('SELECTOR_CHANGED', 'Không thấy danh sách cơ sở Traveloka.'); }
 }

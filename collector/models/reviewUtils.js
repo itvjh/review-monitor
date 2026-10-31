@@ -25,6 +25,8 @@ function normalizeDate(text, now = new Date()) {
   }
   const iso = t.match(/\d{4}-\d{2}-\d{2}/);
   if (iso) return iso[0];
+  const vi = t.match(/(\d{1,2})\s*thg\s*(\d{1,2}),?\s*(\d{4})/); // "2 thg 5, 2022"
+  if (vi) return `${vi[3]}-${vi[2].padStart(2, '0')}-${vi[1].padStart(2, '0')}`;
   const dmy = t.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);
   if (dmy) return `${dmy[3]}-${dmy[2].padStart(2, '0')}-${dmy[1].padStart(2, '0')}`;
   return null;
