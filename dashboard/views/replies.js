@@ -1,7 +1,7 @@
 const TABS = [['pending', 'Chờ duyệt'], ['approved', 'Đã duyệt'], ['posted', 'Đã đăng'], ['rejected', 'Từ chối'], ['none', 'Chưa có bản nháp']];
 const LANG = { vi: 'Tiếng Việt', en: 'Tiếng Anh', ru: 'Tiếng Nga', ko: 'Tiếng Hàn', ja: 'Tiếng Nhật', zh: 'Tiếng Trung', fr: 'Tiếng Pháp', de: 'Tiếng Đức', th: 'Tiếng Thái' };
 const AUTO = Object.keys(PLATFORMS).filter((id) => PLATFORMS[id].autoReply); // platforms the posting queue handles
-let status = 'pending', platform = '', busy = false, canModerate = false, posting = 'off', gapMinutes = 5;
+let status = 'pending', platform = '', busy = false, canModerate = false, posting = 'off', gapSeconds = 300;
 const selected = new Set(); // pending replies ticked for bulk approval
 const areas = new Map(); // review id -> its textarea (bulk approval sends the text as edited)
 let names = new Map(); // review id -> reviewer name, to explain skipped items
@@ -132,7 +132,7 @@ function bulkBar(items) {
   bulkButton.addEventListener('click', async () => {
     const ids = [...selected].filter((id) => areas.has(id));
     if (!ids.length) return;
-    const where = posting === 'live' ? ` Các bài sẽ xếp hàng và tự đăng lần lượt (mỗi bài cách nhau ${gapMinutes} phút).` : '';
+    const where = posting === 'live' ? ` Các bài sẽ xếp hàng và tự đăng lần lượt (mỗi bài cách nhau ${gapText(gapSeconds)}).` : '';
     if (!(await confirmDialog(`Duyệt ${ids.length} bài đã chọn?${where} Bài có cảnh báo sẽ bị bỏ qua để bạn xem lại.`, 'Duyệt'))) return;
     run(() => post('/api/replies/bulk', { action: 'approve', items: ids.map((id) => ({ id, text: areas.get(id).value })) }), bulkButton, true);
   });
@@ -147,10 +147,10 @@ function report(j) {
   if (j.approved) {
     const skipped = (j.skipped || []).map((s) => `${names.get(s.id) || s.id}: ${s.reason}`);
     selected.clear();
-    const head = `Đã duyệt ${j.approved.length} bài${j.queued ? `. Đang xếp hàng đăng (mỗi bài cách nhau ${gapMinutes} phút)` : ''}.`;
+    const head = `Đã duyệt ${j.approved.length} bài${j.queued ? `. Đang xếp hàng đăng (mỗi bài cách nhau ${gapText(gapSeconds)})` : ''}.`;
     return note(head + (skipped.length ? ` Bỏ qua ${skipped.length} bài cần xem lại: ${skipped.join(' | ')}` : ''), skipped.length > 0 && !j.approved.length);
   }
-  if (j.queued) return note(`Đã duyệt và xếp vào hàng đợi đăng (mỗi bài cách nhau ${gapMinutes} phút). Xem ở tab "Đã duyệt".`);
+  if (j.queued) return note(`Đã duyệt và xếp vào hàng đợi đăng (mỗi bài cách nhau ${gapText(gapSeconds)}). Xem ở tab "Đã duyệt".`);
   if (j.result === 'dry-run') return note('Chạy thử: đã điền nội dung vào ô trả lời nhưng KHÔNG bấm Đăng/Gửi.' + (j.screenshot ? ' Ảnh: ' + j.screenshot : ''));
   note('');
 }
@@ -174,7 +174,7 @@ async function load() {
     const me = await whoAmI;
     canModerate = me.role === 'moderator';
     posting = me.posting;
-    gapMinutes = me.gapMinutes || gapMinutes;
+    gapSeconds = me.gapSeconds || gapSeconds;
     const m = $('mode'); m.replaceChildren();
     if (canModerate && posting === 'dry-run') m.append(el('div', 'banner warn', 'Chế độ CHẠY THỬ: không có gì được đăng thật.'));
     $('role').textContent = canModerate ? '' : 'Chế độ chỉ xem';

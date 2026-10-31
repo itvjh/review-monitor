@@ -50,6 +50,7 @@ exports.publish = async (id) => {
     }
     const payload = PAYLOAD[row.platform](row, { business_identifier: biz, source_locator: row.raw_data?.source_locator || null, reviewer_name: row.reviewer_name, text, retry: row.reply_attempts > 1, dry_run: mode() !== 'live', deadline: Date.now() + 170000 });
     const out = await collector.postReply(payload, row.platform);
+    if (out.status !== 'OK' && out.error_code === 'UNKNOWN_ERROR') throw Object.assign(new HttpError(502, `${out.error_message}${out.screenshot ? ` (ảnh: ${out.screenshot})` : ''}`), { stall: true }); // the post may have gone through: only a person retries it
     if (out.status !== 'OK') throw new HttpError(502, `${out.error_code || 'LỖI'}: ${out.error_message || out.status}${out.screenshot ? ` (ảnh: ${out.screenshot})` : ''}`);
     if (out.posted) return { result: 'posted', item: await Reply.act(id, 'posted') };
     return { result: 'dry-run', screenshot: out.screenshot };

@@ -1,4 +1,4 @@
-// The posting queue: approved replies go to Google ONE AT A TIME, at least REPLY_GAP_MINUTES apart (default 5),
+// The posting queue: approved replies go to Google ONE AT A TIME, at least REPLY_GAP_SECONDS apart (default 300),
 // so Google never sees a burst of automated replies. State lives in the database, so the queue survives restarts.
 const env = require('../../config/env');
 const Reply = require('./reply');
@@ -6,7 +6,7 @@ const publish = require('./publish');
 const collector = require('./collector');
 const rules = require('./queueRules');
 
-const GAP_MS = (Number(env.REPLY_GAP_MINUTES) || 5) * 60000;
+const GAP_MS = (Number(env.REPLY_GAP_SECONDS) || 300) * 1000; // the queue looks every TICK_MS, so a gap shorter than that is rounded up to it
 const MAX_ATTEMPTS = 3; // after this many failures an item waits for a person ("Thử lại")
 const TICK_MS = 10000;
 
@@ -32,7 +32,7 @@ exports.createQueue = ({ reply = Reply, pub = publish, col = collector, now = Da
       if (c.busy) return 'collector-busy';
       // Record the attempt BEFORE touching Google: a crash or hang then still counts, so it can never be retried in a tight loop.
       if (!(await reply.markAttempt(due))) return 'raced';
-      try { await pub.publish(due.id); return 'posted'; } catch (e) { await reply.setError(due.id, e.message); return 'failed'; }
+      try { await pub.publish(due.id); return 'posted'; } catch (e) { await reply.setError(due.id, e.message, e.stall ? maxAttempts : undefined); return 'failed'; }
     } finally { running = false; }
   };
   return { tick };

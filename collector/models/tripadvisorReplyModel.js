@@ -6,7 +6,7 @@ const Locator = require('./reviewLocator');
 // ("Phạm Tuấn Minh" appears as "tuanminh_1996"), so a row is matched by title + stars + the start of the text and must be unique.
 // The reviewer name only breaks a tie between rows that are otherwise identical.
 const { CodedError } = require('./errors');
-const { squash, screenshot } = require('./util');
+const { sameReply, screenshot } = require('./util');
 const Mc = require('./tripadvisorMc');
 const { matchRow } = require('./tripadvisorParse');
 
@@ -33,7 +33,6 @@ async function locate(page, want, maxPages, sourceLocator) {
 // retry: true when an earlier attempt for this reply already ran (its answer may have been lost after the post went through).
 exports.post = async (page, { businessIdentifier, reviewerName, title, body, rating, text, retry, dryRun, sourceLocator }) => {
   const want = { locationId: businessIdentifier, name: reviewerName, title, body, rating };
-  const head = squash(text).slice(0, 30);
   const found = await locate(page, want, MAX_PAGES, sourceLocator);
   if (found.count === 0) throw new CodedError('REVIEW_NOT_FOUND', `Không tìm thấy review này trong ${MAX_PAGES * 30} đánh giá mới nhất của Tripadvisor (có thể bị xóa hoặc quá cũ).`);
   if (found.count > 1) throw new CodedError('REPLY_MISMATCH', 'Có nhiều hơn một review trùng tiêu đề, nội dung và số sao. Không đăng, hãy đăng tay.');
@@ -52,7 +51,7 @@ exports.post = async (page, { businessIdentifier, reviewerName, title, body, rat
 
   if (found.replied) {
     // Idempotent: a retry after an unconfirmed post recognises our own reply. Someone else's reply is never touched.
-    if (squash(await page.locator('body').innerText()).includes(head)) return { posted: true, dry_run: false, verified: true, already: true };
+    if (sameReply(await page.locator('body').innerText(), text)) return { posted: true, dry_run: false, verified: true, already: true };
     throw new CodedError('ALREADY_REPLIED', 'Review này đã có phản hồi khác của chủ sở hữu trên Tripadvisor. Không đăng.');
   }
 

@@ -8,7 +8,7 @@ const publish = require('../models/publish');
 const queue = require('../models/queue');
 
 // GET /api/me -> { role: 'moderator' | 'viewer', posting: 'off' | 'dry-run' | 'live' }
-exports.me = (req, res) => view.json(res, 200, { role: access.role(req), posting: publish.mode(), gapMinutes: queue.GAP_MS / 60000 });
+exports.me = (req, res) => view.json(res, 200, { role: access.role(req), posting: publish.mode(), gapSeconds: queue.GAP_MS / 1000 });
 
 // GET /api/data?days=14  -> { reviews, runs: { google, tripadvisor } }
 exports.index = async (req, res, url) => {

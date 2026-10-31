@@ -8,6 +8,9 @@ const { classify, CodedError } = require('./errors');
 const sessions = require('./browserSession').createSessions(chromium, cfg);
 exports.disconnect = () => sessions.disconnect();
 
+// Error screenshots show customer names and review text: keep two weeks, then delete.
+try { for (const f of fs.readdirSync(cfg.SHOTS)) { const p = path.join(cfg.SHOTS, f); if (Date.now() - fs.statSync(p).mtimeMs > 14 * 864e5) fs.unlinkSync(p); } } catch { /* no screenshots folder yet */ }
+
 let queue = Promise.resolve(); // one browser at a time: the profile dir is locked per instance
 let pending = 0; // jobs running or waiting (a crawl, a reply...)
 exports.serial = (fn) => {

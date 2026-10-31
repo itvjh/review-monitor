@@ -88,7 +88,7 @@ exports.bulk = guarded(async (req, res, url, body) => {
 // In live mode the queue is the only way out, so posts stay spaced apart.
 exports.post = guarded(async (req, res, url, body) => {
   const id = idOf(parse(body));
-  if (publish.mode() === 'live') throw new HttpError(409, `Ở chế độ đăng thật, bài được đăng tự động theo hàng đợi (mỗi bài cách nhau ${queue.GAP_MS / 60000} phút).`);
+  if (publish.mode() === 'live') throw new HttpError(409, `Ở chế độ đăng thật, bài được đăng tự động theo hàng đợi (mỗi bài cách nhau ${queue.GAP_MS % 60000 ? queue.GAP_MS / 1000 + ' giây' : queue.GAP_MS / 60000 + ' phút'}).`);
   view.json(res, 200, await publish.publish(id));
 });
 

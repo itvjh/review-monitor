@@ -13,13 +13,9 @@
     "start:dashboard": "node dashboard/server.js",
     "login": "npm --prefix collector run login",
     "browser:check": "node scripts/check-browser.js",
-    "sync:businesses": "node scripts/sync-business-ids.js",
-    "build:icons": "node scripts/build-icons.js"
+    "sync:businesses": "node scripts/sync-business-ids.js"
   },
   "dependencies": {
     "chart.js": "^4.6.1"
-  },
-  "devDependencies": {
-    "lucide-static": "^1.63.0"
   }
 }

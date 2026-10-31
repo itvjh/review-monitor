@@ -33,7 +33,7 @@ exports.lint = (text, business) => {
   const out = [];
   if (!t) return [{ level: 'error', message: 'Nội dung trả lời đang trống.' }];
   if (t.length > MAX_LEN) out.push({ level: 'error', message: `Quá dài (${t.length}/${MAX_LEN} ký tự).` });
-  if (t.length < 20) out.push({ level: 'warn', message: 'Nội dung rất ngắn.' });
+  if (t.length < 20) out.push({ level: 'error', message: 'Quá ngắn (cần ít nhất 20 ký tự, collector từ chối nội dung ngắn hơn).' }); // same minimum as collector/models/replyPolicy.js
   if (/(https?:\/\/|www\.)\S+/i.test(t)) out.push({ level: 'warn', message: 'Có chứa liên kết.' });
   if (/[^\s@]+@[^\s@]+\.[^\s@]+/.test(t)) out.push({ level: 'warn', message: 'Có chứa địa chỉ email.' });
   if (/\+?\d[\d\s().-]{7,}\d/.test(t)) out.push({ level: 'warn', message: 'Có chứa số điện thoại hoặc dãy số dài.' });

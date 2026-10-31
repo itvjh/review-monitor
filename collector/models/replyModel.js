@@ -47,6 +47,11 @@ async function locate(page, reviewId, maxPages, businessIdentifier, sourceLocato
   });
 }
 
+// The send button sits in the same container as the textarea and its Hủy button. "Trả lời" also opens the editor on other cards, so never search the whole page.
+const sendButton = (page, area) => page.locator('div').filter({ has: area }).filter({ has: page.locator('button').filter({ hasText: SEL.replyCancel }) }).last()
+  .locator('button').filter({ hasText: SEL.replySubmit });
+exports.sendButton = sendButton;
+
 const shot = (page, label) => screenshot(page, 'reply-' + label);
 
 exports.post = async (page, { reviewId, businessIdentifier, reviewerName, text, dryRun, sourceLocator }) => {
@@ -80,9 +85,7 @@ exports.post = async (page, { reviewId, businessIdentifier, reviewerName, text, 
     return { posted: false, dry_run: true, screenshot };
   }
 
-  // The send button sits in the same container as the textarea and its Hủy button. "Trả lời" also opens the editor on other cards, so never search the whole page.
-  const editor = page.locator('div').filter({ has: area }).filter({ has: page.locator('button').filter({ hasText: SEL.replyCancel }) }).last();
-  const submit = editor.locator('button').filter({ hasText: SEL.replySubmit });
+  const submit = sendButton(page, area);
   if ((await submit.count()) !== 1) throw new CodedError('SELECTOR_CHANGED', 'không tìm thấy đúng một nút gửi trả lời trong ô soạn');
   if (await submit.isDisabled()) throw new CodedError('SELECTOR_CHANGED', 'nút Đăng trả lời đang bị khóa');
   await submit.click();

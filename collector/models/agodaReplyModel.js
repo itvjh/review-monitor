@@ -3,7 +3,7 @@ const Locator = require('./reviewLocator');
 // platforms: find the review by its booking id (BID, exact), refuse if it is not found, already answered or if the dialog that opens
 // is for another booking, never retry the submit, and confirm from a fresh page load.
 const { CodedError } = require('./errors');
-const { squash, screenshot } = require('./util');
+const { squash, sameReply, screenshot } = require('./util');
 const Agoda = require('./agodaModel');
 const { languageLabel } = require('./agodaParse');
 
@@ -28,12 +28,11 @@ async function locate(page, propertyId, bid, maxPages, sourceLocator) {
 
 // retry: true when an earlier attempt for this reply already ran (its answer may have been lost after the post went through).
 exports.post = async (page, { propertyId, bid, language, text, retry, dryRun, sourceLocator }) => {
-  const head = squash(text).slice(0, 30);
   const found = await locate(page, propertyId, bid, MAX_PAGES, sourceLocator);
   if (!found) throw new CodedError('REVIEW_NOT_FOUND', `Không tìm thấy review (mã đặt phòng ${bid}) trong ${MAX_PAGES * 20} đánh giá mới nhất của Agoda.`);
   if (found.replied) {
     // Idempotent: a retry after an unconfirmed post recognises our own reply. Someone else's reply is never touched.
-    if (squash(found.reply).includes(head) || retry) return { posted: true, dry_run: false, verified: true, already: true };
+    if (sameReply(found.reply, text) || (retry && !squash(found.reply))) return { posted: true, dry_run: false, verified: true, already: true };
     throw new CodedError('ALREADY_REPLIED', 'Review này đã có phản hồi khác của chủ sở hữu trên Agoda. Không đăng.');
   }
 

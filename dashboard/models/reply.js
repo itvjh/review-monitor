@@ -93,7 +93,8 @@ exports.markAttempt = async (row) => {
   return done[0] || null;
 };
 
-exports.setError = async (id, message) => { const out = await db.patch(`reviews?id=eq.${id}`, { reply_error: String(message).slice(0, 500) }); cache.clear(); return out; };
+// attempts (optional): set the counter too, e.g. to the maximum so the queue stops and waits for a person.
+exports.setError = async (id, message, attempts) => { const out = await db.patch(`reviews?id=eq.${id}`, { reply_error: String(message).slice(0, 500), ...(attempts === undefined ? {} : { reply_attempts: attempts }) }); cache.clear(); return out; };
 
 exports.saveDraft = async (row, draft) => {
   if (!rules.canDraft(row.reply_status)) throw new HttpError(409, 'Bản trả lời này đã được duyệt, không thể tạo lại.');

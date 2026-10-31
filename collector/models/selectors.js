@@ -2,7 +2,6 @@
 // obfuscated ones, so when they change the models raise SELECTOR_CHANGED (with a screenshot) instead of guessing.
 module.exports = {
   profileLink: 'a[href*="/n/"][href*="/profile"]',
-  reviewsUrl: 'https://business.google.com/reviews', // all locations, newest first
   locationsUrl: 'https://business.google.com/locations',
   propertyReviewsUrl: (id) => `https://www.google.com/local/business/${id}/customers/reviews?knm=0&ih=lu&origin=https%3A%2F%2Fwww.google.com&hl=vi&dcs=1`,
   card: '[data-review-id]',

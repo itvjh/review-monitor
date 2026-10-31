@@ -54,9 +54,9 @@ const make = (over = {}) => {
     postedSince: async () => db.posted,
     nextDue: async () => db.due,
     markAttempt: async (row) => { log.push('mark ' + row.id); if (db.claim) db.last = new Date(NOW).toISOString(); return db.claim ? row : null; },
-    setError: async (id, msg) => { log.push(`error ${id}: ${msg}`); },
+    setError: async (id, msg, attempts) => { log.push(`error ${id}: ${msg}${attempts === undefined ? '' : ' stall ' + attempts}`); },
   };
-  const pub = { mode: () => 'live', startOfToday: () => ago(0), DAILY_LIMIT: 10, publish: async (id) => { log.push('post ' + id); if (over.fail) throw new Error('boom'); return { result: 'posted' }; }, ...over.pub };
+  const pub = { mode: () => 'live', startOfToday: () => ago(0), DAILY_LIMIT: 10, publish: async (id) => { log.push('post ' + id); if (over.fail) throw Object.assign(new Error('boom'), { stall: over.stall }); return { result: 'posted' }; }, ...over.pub };
   const col = { status: async () => ({ up: true, busy: false, ...over.col }) };
   return { log, db, q: createQueue({ reply, pub, col, now: () => NOW, gapMs: GAP, maxAttempts: 3 }) };
 };
@@ -95,6 +95,11 @@ const make = (over = {}) => {
   assert.strictEqual(await t.q.tick(), 'failed');
   assert.deepStrictEqual(t.log, ['mark r1', 'post r1', 'error r1: boom']);
   assert.strictEqual(await t.q.tick(), 'wait'); // a failure also counts as touching Google: no tight retry loop
+
+  // a post that may have gone through (UNKNOWN_ERROR) stops the item at the maximum attempts: only a person retries it
+  t = make({ fail: true, stall: true });
+  assert.strictEqual(await t.q.tick(), 'failed');
+  assert.deepStrictEqual(t.log, ['mark r1', 'post r1', 'error r1: boom stall 3']);
 
   t = make();
   const [first, second] = await Promise.all([t.q.tick(), t.q.tick()]); // two ticks at once never post twice

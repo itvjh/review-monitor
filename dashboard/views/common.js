@@ -34,6 +34,8 @@ function starsEl(n) {
   return s;
 }
 
+// "30 giây" or "5 phút": the gap between automatic posts.
+const gapText = (s) => (s % 60 ? s + ' giây' : s / 60 + ' phút');
 const ago = (iso) => { if (!iso) return '—'; const m = Math.round((Date.now() - new Date(iso)) / 60000); return m < 1 ? 'vừa xong' : m < 60 ? m + ' phút trước' : m < 1440 ? Math.round(m / 60) + ' giờ trước' : Math.round(m / 1440) + ' ngày trước'; };
 
 // The review text as separate rows: the original and Google's automatic translation are never mixed in one block.
