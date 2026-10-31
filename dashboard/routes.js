@@ -6,6 +6,7 @@ const crawl = require('./controllers/crawlController');
 const view = require('./views/render');
 const { HttpError } = require('./models/httpError');
 const access = require('./models/access');
+const platforms = require('../config/platforms');
 
 const routes = {
   'GET /api/me': data.me,
@@ -21,6 +22,7 @@ const routes = {
   'GET /replies.js': page.file('replies.js'),
   'GET /style.css': page.file('style.css'),
   'GET /vendor/chart.js': page.vendor('chart.js/dist/chart.umd.js', 'text/javascript; charset=utf-8'),
+  ...Object.fromEntries(Object.values(platforms).filter((p) => p.logo).map((p) => [`GET ${p.logo}`, page.file(p.logo.slice(1))])), // /logos/<id>.svg
   'GET /api/data': data.index,
   'GET /api/replies': reply.index,
   'POST /api/replies/lint': reply.lint,

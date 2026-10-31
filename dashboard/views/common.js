@@ -7,7 +7,9 @@ const whoAmI = fetch('/api/me').then((r) => r.json()).catch(() => ({ role: 'view
 
 // PLATFORMS (name, colour, login command, owner page, autoReply) comes from /platforms.js, i.e. from config/platforms.js.
 const platformName = (p) => (PLATFORMS[p] ? PLATFORMS[p].name : p || 'Google');
-const platformBadge = (p) => el('span', 'badge ' + (PLATFORMS[p] ? p : 'google'), platformName(p));
+// The platform's logo (alt is empty: the name next to it says it) or, without one, a coloured dot.
+const platformMark = (p) => { if (!PLATFORMS[p] || !PLATFORMS[p].logo) return el('span', 'dot ' + p); const i = el('img', 'logo'); i.src = PLATFORMS[p].logo; i.alt = ''; return i; };
+const platformBadge = (p) => { const b = el('span', 'badge ' + (PLATFORMS[p] ? p : 'google'), platformName(p)); if (PLATFORMS[p] && PLATFORMS[p].logo) b.prepend(platformMark(p)); return b; };
 
 // Platform / status switchers share one pattern: buttons with aria-pressed. items = [[value, label, count, dotPlatform?]]
 function segmented(container, items, current, onPick) {
@@ -16,7 +18,7 @@ function segmented(container, items, current, onPick) {
     const b = el('button');
     b.type = 'button';
     b.setAttribute('aria-pressed', String(value === current));
-    if (dot) b.append(el('span', 'dot ' + dot));
+    if (dot) b.append(platformMark(dot));
     b.append(label);
     if (count !== undefined) b.append(el('span', 'count', count));
     b.addEventListener('click', () => onPick(value));

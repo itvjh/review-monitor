@@ -17,9 +17,9 @@ exports.index = async (req, res, url) => {
   view.json(res, 200, { reviews: reviews.map((r) => ({ ...r, text_parts: split(r.review_text) })), runs });
 };
 
-// GET /platforms.js -> const PLATFORMS = {id: {name, color, tint, login, ownerUrl, autoReply}}; plus the per-platform colours as CSS.
+// GET /platforms.js -> const PLATFORMS = {id: {name, logo, color, tint, login, ownerUrl, autoReply}}; plus the per-platform colours as CSS.
 exports.platformsScript = (req, res) => {
-  const pub = Object.fromEntries(Object.entries(platforms).map(([id, p]) => [id, { name: p.name, color: p.color, tint: p.tint, login: p.login, ownerUrl: p.ownerUrl, autoReply: p.autoReply }]));
+  const pub = Object.fromEntries(Object.entries(platforms).map(([id, p]) => [id, { name: p.name, logo: p.logo, color: p.color, tint: p.tint, login: p.login, ownerUrl: p.ownerUrl, autoReply: p.autoReply }]));
   const css = Object.entries(pub).map(([id, p]) => `.badge.${id}{color:${p.color};background:${p.tint}}.dot.${id}{background:${p.color}}`).join('');
   view.script(res, `const PLATFORMS = ${JSON.stringify(pub)};\n(() => { const s = document.createElement('style'); s.textContent = ${JSON.stringify(css)}; document.head.append(s); })();\n`);
 };
