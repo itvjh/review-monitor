@@ -5,7 +5,7 @@ const rules = require('./replyRules');
 const { HttpError } = require('./httpError');
 const platforms = require('../../config/platforms');
 
-const COLUMNS = 'id,platform,rating,reviewer_name,review_text,review_date,review_date_raw,language,has_owner_reply,external_review_id,reply_draft,reply_final,reply_status,reply_reviewed_at,reply_queued_at,reply_attempts,reply_last_attempt_at,reply_error,businesses(business_name,external_business_id)';
+const COLUMNS = 'id,platform,raw_data,rating,reviewer_name,review_text,review_date,review_date_raw,language,has_owner_reply,external_review_id,reply_draft,reply_final,reply_status,reply_reviewed_at,reply_queued_at,reply_attempts,reply_last_attempt_at,reply_error,businesses(business_name,external_business_id)';
 const ORDER = 'order=review_date.desc.nullslast,collected_at.desc';
 const QUEUE_ORDER = 'order=reply_queued_at.asc.nullsfirst,reply_reviewed_at.asc'; // first approved, first posted
 exports.STATUSES = ['pending', 'approved', 'posted', 'rejected', 'none'];

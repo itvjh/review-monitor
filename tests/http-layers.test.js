@@ -21,6 +21,9 @@ const call = (s, method, path, body) => fetch(`http://127.0.0.1:${s.address().po
   assert.strictEqual((await call(dash, 'GET', '/../.env')).code, 404); // only whitelisted files are served
   assert.strictEqual((await call(dash, 'GET', '/replies')).code, 200);
   assert.strictEqual((await call(dash, 'GET', '/replies.js')).code, 200);
+  assert.strictEqual((await call(dash, 'GET', '/crawl')).code, 200);
+  assert.strictEqual((await call(dash, 'GET', '/crawl.js')).code, 200);
+  assert.equal(JSON.parse((await call(dash, 'GET', '/api/crawl')).text).platforms.length, Object.keys(require('../config/platforms')).length);
 
   // state-changing endpoints: JSON only, same origin only, validated input (all rejected before any database call)
   const raw = (method, path, headers, body) => new Promise((ok) => {
@@ -28,6 +31,12 @@ const call = (s, method, path, body) => fetch(`http://127.0.0.1:${s.address().po
     r.end(body);
   });
   const json = { 'content-type': 'application/json' };
+  assert.strictEqual((await raw('POST', '/api/crawl', json, '{bad')).code, 400);
+  assert.strictEqual((await raw('POST', '/api/crawl', json, 'null')).code, 400);
+  assert.strictEqual((await raw('POST', '/api/crawl', json, '{"platforms":["google; calc"]}')).code, 400);
+  assert.strictEqual((await raw('POST', '/api/crawl', json, '{"platforms":["constructor"]}')).code, 400);
+  assert.strictEqual((await raw('POST', '/api/crawl', { ...json, origin: 'http://evil.example' }, '{}')).code, 403);
+  assert.throws(() => require('../dashboard/routes').guard({ method: 'POST', headers: { host: 'localhost:3020', ...json }, socket: { remoteAddress: '203.0.113.8' } }), { status: 403 });
   assert.strictEqual((await raw('POST', '/api/replies/action', { 'content-type': 'text/plain' }, '{}')).code, 415);
   assert.strictEqual((await raw('POST', '/api/replies/action', { ...json, origin: 'http://evil.example' }, '{}')).code, 403);
   assert.strictEqual((await raw('GET', '/api/data', { host: 'evil.example' })).code, 403); // DNS rebinding

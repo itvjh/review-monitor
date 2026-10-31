@@ -9,8 +9,8 @@
 <body>
 <header class="topbar">
   <div class="topbar-in">
-    <a class="brand" href="/"><span class="brand-mark" aria-hidden="true"><svg class="icon" aria-hidden="true"><use href="/vendor/icons.svg#star"/></svg></span>Review Monitor</a>
-    <nav class="nav" aria-label="Điều hướng chính"><a href="/" aria-current="page"><svg class="icon" aria-hidden="true"><use href="/vendor/icons.svg#bell"/></svg>Cảnh báo</a><a href="/replies"><svg class="icon" aria-hidden="true"><use href="/vendor/icons.svg#message-square"/></svg>Trả lời đánh giá</a></nav>
+    <a class="brand" href="/">Review Monitor</a>
+    <nav class="nav" aria-label="Điều hướng chính"><a href="/" aria-current="page">Cảnh báo</a><a href="/replies">Trả lời đánh giá</a><a href="/crawl">Chạy crawl</a></nav>
     <span id="role" class="pill"></span>
   </div>
 </header>
@@ -20,7 +20,7 @@
       <h1>Cảnh báo đánh giá</h1>
       <p class="sub" id="status" aria-live="polite">Đang tải…</p>
     </div>
-    <button class="btn" id="refresh" type="button"><svg class="icon" aria-hidden="true"><use href="/vendor/icons.svg#refresh-cw"/></svg>Làm mới</button>
+    <button class="btn" id="refresh" type="button">Làm mới</button>
   </div>
   <div id="banner"></div>
   <section class="runs" id="runs" aria-label="Tình trạng thu thập theo nền tảng"></section>
@@ -36,11 +36,11 @@
       <option value="">Tất cả phản hồi</option><option value="no">Chưa phản hồi</option><option value="yes">Đã phản hồi</option>
     </select>
   </div>
-  <section class="charts" id="charts" aria-label="Biểu đồ">
-    <div class="panel"><h2><svg class="icon" aria-hidden="true"><use href="/vendor/icons.svg#chart-column"/></svg>Đánh giá theo ngày</h2><div class="chart-box"><canvas id="trend" role="img" aria-label="Biểu đồ đánh giá theo ngày"></canvas></div></div>
-    <div class="panel"><h2><svg class="icon" aria-hidden="true"><use href="/vendor/icons.svg#star"/></svg>Phân bố số sao</h2><div class="chart-box"><canvas id="ratings" role="img" aria-label="Biểu đồ phân bố số sao"></canvas></div></div>
-  </section>
   <div id="list" aria-live="polite"></div>
+  <section class="charts" id="charts" aria-label="Biểu đồ">
+    <div class="panel"><h2>Đánh giá theo ngày</h2><div class="chart-box"><canvas id="trend" role="img" aria-label="Biểu đồ đánh giá theo ngày"></canvas></div></div>
+    <div class="panel"><h2>Phân bố số sao</h2><div class="chart-box"><canvas id="ratings" role="img" aria-label="Biểu đồ phân bố số sao"></canvas></div></div>
+  </section>
 </main>
 <script src="/vendor/chart.js"></script>
 <script src="/platforms.js"></script>

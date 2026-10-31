@@ -2,6 +2,7 @@
 const data = require('./controllers/dataController');
 const page = require('./controllers/pageController');
 const reply = require('./controllers/replyController');
+const crawl = require('./controllers/crawlController');
 const view = require('./views/render');
 const { HttpError } = require('./models/httpError');
 const access = require('./models/access');
@@ -10,6 +11,10 @@ const routes = {
   'GET /api/me': data.me,
   'GET /': page.file('index.html'),
   'GET /replies': page.file('replies.html'),
+  'GET /crawl': page.file('crawl.html'),
+  'GET /crawl.js': page.file('crawl.js'),
+  'GET /api/crawl': crawl.index,
+  'POST /api/crawl': crawl.start,
   'GET /platforms.js': data.platformsScript,
   'GET /common.js': page.file('common.js'),
   'GET /app.js': page.file('app.js'),

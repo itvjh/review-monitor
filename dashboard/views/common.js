@@ -54,26 +54,13 @@ function reviewBody(r) {
   return box;
 }
 
-// Lucide icons (self-hosted sprite). Decorative: the button or label next to it carries the meaning.
-const SVG_NS = 'http://www.w3.org/2000/svg';
-function icon(name) {
-  const svg = document.createElementNS(SVG_NS, 'svg');
-  svg.setAttribute('class', 'icon');
-  svg.setAttribute('aria-hidden', 'true');
-  const use = document.createElementNS(SVG_NS, 'use');
-  use.setAttribute('href', '/vendor/icons.svg#' + name);
-  svg.append(use);
-  return svg;
-}
-// A button/label with a leading icon. Text stays in a textContent node (never HTML).
-const withIcon = (node, name) => { node.prepend(icon(name)); return node; };
 
 // Native <dialog> instead of window.confirm: styled, focus-trapped by the browser, Escape cancels.
 function confirmDialog(message, okLabel) {
   return new Promise((resolve) => {
     const d = el('dialog', 'dialog');
     d.setAttribute('aria-label', 'Xác nhận');
-    const ok = withIcon(el('button', 'btn primary', okLabel || 'Đồng ý'), 'check');
+    const ok = el('button', 'btn primary', okLabel || 'Đồng ý');
     const no = el('button', 'btn', 'Hủy');
     ok.type = no.type = 'button';
     const row = el('div', 'actions'); row.append(no, ok);

@@ -96,6 +96,7 @@ exports.post = guarded(async (req, res, url, body) => {
 exports.generate = guarded(async (req, res, url, body) => {
   const row = await Reply.find(idOf(parse(body)));
   if (row.has_owner_reply) throw new HttpError(409, 'Đánh giá này đã có phản hồi của chủ sở hữu.');
+  if (row.raw_data?.reply_allowed === false) throw new HttpError(409, 'Nền tảng không cho trả lời đánh giá này.');
   if (!rules.canDraft(row.reply_status)) throw new HttpError(409, 'Bản trả lời này đã được duyệt, không thể tạo lại.');
   const saved = await Reply.saveDraft(row, await gemini.draftReply(row));
   view.json(res, 200, { item: shape(saved) });

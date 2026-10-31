@@ -7,3 +7,5 @@ collector/node_modules/
 *.log
 collector/blocked.json
 collector/cache.json
+collector/business-ids.json
+collector/business-ids.json.tmp

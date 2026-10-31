@@ -12,6 +12,42 @@ n8n (workflow, chạy mỗi ngày 1 lần lúc 09:00, múi giờ Asia/Ho_Chi_Min
 
 ## Khởi động hằng ngày (sau khi bật máy)
 
+### Chạy theo ID cơ sở và ID đánh giá
+
+Danh mục cơ sở của từng nguồn được lưu bền trong `collector/business-ids.json`, sắp theo ID. Lượt crawl thông thường dùng danh mục đã lưu; không mở lại danh sách tài khoản ở cả n8n lẫn collector. Đồng bộ khi có cơ sở mới hoặc đổi quyền bằng `npm run sync:businesses` (mỗi nguồn được đọc một lần); `GET http://127.0.0.1:3010/directory` cho xem danh sách ID hiện có. Nếu nguồn đang tạm dừng, danh mục cũ vẫn giữ nguyên.
+
+n8n dùng **Business Loop** để chạy một ID cơ sở mỗi lượt: lưu cơ sở → lấy hash đã biết riêng cơ sở đó → yêu cầu collector đọc đúng ID → chuyển sang cơ sở kế tiếp. Sau khi thu thập, review được sắp theo ID cơ sở và ID review để chống trùng, phân tích và lưu. Google vẫn giữ ngân sách tối đa 30 bài/lượt, chia đều cho các cơ sở; nguồn khác vẫn tối đa 5 bài mới/cơ sở. Chỉ bài chưa lưu mới gọi AI. Lịch chạy hiện tại được giữ nguyên khi cập nhật lần này.
+
+`raw_data.source_locator` lưu ID cơ sở, ID review, trang và ID gốc nếu đọc được. Khi trả lời, worker mở đúng cơ sở, tìm ID trên trang gợi ý và xác nhận lại tên/nội dung trước khi gửi. Trang gợi ý chỉ giúp tìm nhanh: nếu review dịch sang trang khác, hệ thống tìm lại trong phạm vi cho phép. Dữ liệu cũ chưa có locator vẫn dùng ID cơ sở và ID review đã lưu. Google mở trang quản lý `/local/business/<ID>/customers/reviews` và đối chiếu `data-review-id`; Agoda dùng BID. Traveloka chọn thẻ cơ sở theo ID TERA rồi xác nhận ID ở đầu trang, đọc ID gốc trong ô trả lời. Tripadvisor chưa cung cấp ID gốc ổn định trên dòng quản lý, nên dùng ID nội bộ theo nội dung và kiểm tra khớp duy nhất; không tự suy đoán URL review.
+
+### Traveloka TERA
+
+- Đăng nhập trong Chrome cá nhân: `npm run login -- traveloka`. Dùng phiên Chrome đã bật Remote Debugging giống các nền tảng khác.
+- Trang cơ sở: `https://tera.traveloka.com/vi-vn/user/property/`; collector chọn cơ sở bằng ID TERA và xác nhận ID trên đầu trang trước khi đọc hoặc gửi phản hồi. Trang đánh giá dùng cơ sở vừa chọn, không gắn ID trong URL.
+- Workflow **Traveloka Review Monitor** chạy mỗi ngày lúc **10:30** (Asia/Ho_Chi_Minh), tối đa **5 đánh giá mới mỗi cơ sở**. Có thể chạy ngay ở `/crawl`, chọn riêng Traveloka hoặc chạy hàng loạt. Số cơ sở lấy từ tài khoản đang đăng nhập, không viết cứng trong mã.
+- Luôn chọn **Tất cả đánh giá**, **Mới nhất**, đọc nội dung gốc, ngày gửi đánh giá và trạng thái phản hồi. Bài đã trả lời không tạo nháp. Bài bị Traveloka khóa phản hồi vẫn được phân tích nhưng không tạo nháp; cờ `raw_data.reply_allowed` chặn cả nút tạo nháp lẫn luồng đăng.
+- Traveloka chấm 1–10; điểm gốc lưu ở `raw_data.source_score`, điểm trên dashboard quy đổi sang 1–5 như Agoda. Danh tính chống trùng dựa trên ID cơ sở + tên hiển thị + ngày gửi + kỳ lưu trú + điểm + nội dung gốc. Traveloka không hiển thị mã review ở mọi thẻ. Nếu khách sửa nội dung, hệ thống có thể coi là bài mới; khi nhiều thẻ trùng danh tính, luồng đăng dừng thay vì chọn đại.
+- Phản hồi đã duyệt dùng chung hàng đợi. Trước khi gửi, collector tìm đúng thẻ và kiểm tra ô soạn có mã review gốc, đúng nội dung và đúng cơ sở. Chỉ bấm gửi một lần; sau đó tải lại để xác nhận nội dung. Không xác nhận được thì báo lỗi để kiểm tra tay. `dry_run:true` chỉ điền thử rồi xóa và hủy, không gửi.
+- Không cần migration mới: nền tảng là chuỗi tự do, cờ bổ sung dùng `raw_data` hiện có. Workflow sinh từ `workflows/build.js`; để cập nhật riêng Traveloka: `node workflows/build.js workflows/traveloka-reviews.json traveloka`, import file đó và publish ID `travelokaReviewMonitor1`, sau đó khởi động lại n8n.
+
+### Chạy crawl từ dashboard
+
+Mở `http://localhost:3020/crawl` (mục **Chạy crawl** trên thanh điều hướng). Bấm **Crawl ngay** cho một nền tảng, hoặc chọn nhiều nền tảng rồi bấm **Chạy mục đã chọn**; **Chạy tất cả** xếp tất cả nền tảng còn trống vào hàng đợi. Chỉ máy quản trị có quyền khởi chạy, người xem qua mạng nội bộ chỉ xem trạng thái.
+
+Dashboard gọi đúng workflow n8n đã có bằng `n8n execute --id=...`, cùng cách với lệnh crawl thủ công. Các lượt thủ công từ dashboard chạy lần lượt, dùng cổng runner 5690 và không xếp trùng nền tảng còn đang chạy/chờ. Chrome cá nhân phải mở và collector phải chạy; lịch tự động vẫn giữ nguyên. Không đồng thời chạy thêm `npm run crawl` vì CLI dùng chung cổng runner thủ công.
+
+Trang cập nhật trạng thái mỗi 3 giây, hiển thị số cơ sở, đánh giá quét, đánh giá mới và lỗi khi n8n trả bản tổng kết. Workflow có thể hoàn tất một phần hoặc lỗi đăng nhập dù tiến trình n8n đã kết thúc. Lịch sử tối đa 50 lượt chỉ tồn tại trong phiên dashboard hiện tại; đừng khởi động lại dashboard khi đang crawl. Đóng tab trình duyệt không dừng lượt chạy. Một lượt vượt 60 phút sẽ bị dừng và báo lỗi. Không gửi raw output của n8n ra giao diện vì node có thể chứa credential.
+
+### Crawl trong Chrome cá nhân đang mở
+
+Đặt `BROWSER_MODE=personal` trong `.env` để collector kết nối trực tiếp với phiên Chrome cá nhân đang mở, dùng cùng phiên đăng nhập cho cả crawl theo lịch và phản hồi đã duyệt. Không sao chép cookie hay mở profile `collector/profile`. Chế độ cũ dùng `BROWSER_MODE=persistent`.
+
+1. Chrome 144 trở lên: mở `chrome://inspect/#remote-debugging` và bật Remote Debugging. Khi có yêu cầu kết nối, tự bấm **Cho phép** trong Chrome.
+2. Giữ Chrome cá nhân mở và đăng nhập các nền tảng cần dùng. Mặc định tự tìm kết nối trong `%LOCALAPPDATA%/Google/Chrome/User Data/DevToolsActivePort`; nếu dùng thư mục dữ liệu khác, đặt `CHROME_USER_DATA_DIR` trong `.env` trỏ tới thư mục chứa file đó (không phải thư mục con `Default`).
+3. Khởi động lại collector/hệ thống để nhận cấu hình mới, rồi chạy `npm run browser:check` để kiểm tra bằng một tab cục bộ, không truy cập nền tảng và không đăng phản hồi. Khi collector đang chạy, lệnh kiểm tra dùng chính kết nối của collector và giữ kết nối đó cho các lượt theo lịch. Nếu collector chưa chạy, lệnh chỉ kiểm tra độc lập rồi ngắt kết nối.
+
+Collector giữ một kết nối trong suốt phiên chạy, tạo và đóng tab riêng cho mỗi công việc. Không điều hướng, đóng tab có sẵn hay đặt bộ lọc mạng trên toàn bộ trình duyệt. Nếu Chrome đóng, quyền bị thu hồi hoặc Remote Debugging tắt, công việc báo `AUTH_REQUIRED`; không tự chuyển sang profile khác. Chrome có thể yêu cầu cho phép lại khi kết nối mới. CAPTCHA, yêu cầu xác minh và thời gian tạm dừng của nền tảng vẫn được giữ nguyên; đổi trình duyệt không đảm bảo hết bị chặn. Lịch n8n vẫn cần máy và các dịch vụ đang bật đúng giờ.
+
 **Cách dễ nhất: bấm đúp file `start.bat`** trong thư mục `D:\automation` (hoặc mở terminal ở đó và chạy **một lệnh**):
 
 ```

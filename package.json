@@ -12,6 +12,8 @@
     "start:collector": "npm --prefix collector start",
     "start:dashboard": "node dashboard/server.js",
     "login": "npm --prefix collector run login",
+    "browser:check": "node scripts/check-browser.js",
+    "sync:businesses": "node scripts/sync-business-ids.js",
     "build:icons": "node scripts/build-icons.js"
   },
   "dependencies": {

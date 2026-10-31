@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chạy crawl · Review Monitor</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<header class="topbar"><div class="topbar-in">
+  <a class="brand" href="/">Review Monitor</a>
+  <nav class="nav" aria-label="Điều hướng chính"><a href="/">Cảnh báo</a><a href="/replies">Trả lời đánh giá</a><a href="/crawl" aria-current="page">Chạy crawl</a></nav>
+  <span id="role" class="pill"></span>
+</div></header>
+<main class="page">
+  <div class="page-head"><div><h1>Chạy crawl</h1><p class="sub">Lấy đánh giá mới ngay, không cần chờ lịch tự động. Giữ Chrome cá nhân mở và đăng nhập các nền tảng.</p></div><a class="btn" href="/">Xem đánh giá</a></div>
+  <div id="notice" aria-live="polite"></div>
+  <section aria-label="Chọn nền tảng"><div class="crawl-picks" id="crawl-platforms"></div></section>
+  <div class="crawl-bar">
+    <label class="crawl-select"><input id="select-all" type="checkbox">Chọn tất cả</label>
+    <span class="meta" id="selection-count"></span>
+    <button class="btn primary" type="button" id="run-selected" disabled>Chạy mục đã chọn</button>
+    <button class="btn" type="button" id="run-all" disabled>Chạy tất cả</button>
+  </div>
+  <p class="sub crawl-help">Các nền tảng được chạy lần lượt. Bạn có thể chuyển trang hoặc đóng tab; lượt crawl vẫn tiếp tục. Lịch tự động không thay đổi.</p>
+  <section aria-labelledby="history-title">
+    <div class="page-head"><div><h2 id="history-title">Lượt chạy thủ công</h2><p class="sub">Tự cập nhật mỗi 3 giây. Lưu tối đa 50 lượt trong phiên máy chủ hiện tại.</p></div><button class="btn" type="button" id="refresh">Làm mới</button></div>
+    <div id="crawl-jobs" aria-live="polite"></div>
+  </section>
+</main>
+<script src="/platforms.js"></script><script src="/common.js"></script><script src="/crawl.js"></script>
+</body>
+</html>

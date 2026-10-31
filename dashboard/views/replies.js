@@ -26,7 +26,7 @@ function warningsBox(box, warnings) {
 }
 
 function updateBulkButton() {
-  if (bulkButton) { bulkButton.replaceChildren(icon('check'), `Duyệt hàng loạt (${selected.size})`); bulkButton.disabled = selected.size === 0; }
+  if (bulkButton) { bulkButton.replaceChildren(`Duyệt hàng loạt (${selected.size})`); bulkButton.disabled = selected.size === 0; }
 }
 
 // Where an approved reply stands: platforms in AUTO go through the posting queue, any other is pasted by hand.
@@ -62,8 +62,9 @@ function card(r) {
   c.append(head, meta, reviewBody(r));
 
   if (status === 'none') {
+    if (r.raw_data?.reply_allowed === false) { c.append(el('p', 'meta', 'Nền tảng không hỗ trợ trả lời đánh giá này.')); return c; }
     if (!canModerate) return c;
-    const b = withIcon(el('button', 'btn primary', 'Tạo bản nháp bằng AI'), 'sparkles');
+    const b = el('button', 'btn primary', 'Tạo bản nháp bằng AI');
     b.type = 'button';
     b.addEventListener('click', () => run(() => post('/api/replies/generate', { id: r.id }), b));
     const actions = el('div', 'actions'); actions.append(b); c.append(actions);
@@ -92,7 +93,7 @@ function card(r) {
 
   if (!canModerate) return c; // viewers read only: no buttons
   const actions = el('div', 'actions');
-  const btn = (label, cls, fn, ico) => { const b = el('button', 'btn ' + cls, label); if (ico) withIcon(b, ico); b.type = 'button'; b.addEventListener('click', () => fn(b)); actions.append(b); };
+  const btn = (label, cls, fn) => { const b = el('button', 'btn ' + cls, label); b.type = 'button'; b.addEventListener('click', () => fn(b)); actions.append(b); };
   const act = (action) => (b) => run(() => post('/api/replies/action', { id: r.id, action, text: area.value }), b, action !== 'retry');
 
   if (status === 'pending') {
@@ -101,8 +102,8 @@ function card(r) {
     btn('Từ chối', 'danger', act('reject'), 'x');
   } else if (status === 'approved') {
     const manual = !AUTO.includes(p);
-    btn('Sao chép nội dung', manual ? 'primary' : '', async (b) => { await navigator.clipboard.writeText(area.value); b.replaceChildren(icon('check'), 'Đã sao chép'); }, 'copy');
-    const a = withIcon(el('a', 'btn', 'Mở trang quản lý ' + platformName(p)), 'external-link');
+    btn('Sao chép nội dung', manual ? 'primary' : '', async (b) => { await navigator.clipboard.writeText(area.value); b.textContent = 'Đã sao chép'; });
+    const a = el('a', 'btn', 'Mở trang quản lý ' + platformName(p));
     a.href = PLATFORMS[p] ? PLATFORMS[p].ownerUrl : '#'; a.target = '_blank'; a.rel = 'noopener';
     actions.append(a);
     if (posting === 'dry-run' && !manual) btn('Chạy thử đăng', 'primary', (b) => run(() => post('/api/replies/post', { id: r.id }), b), 'send');

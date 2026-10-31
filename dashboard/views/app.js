@@ -1,6 +1,6 @@
 const PRI = { urgent: 'Khẩn cấp', high: 'Cao', medium: 'Trung bình', low: 'Thấp' };
 const CAT = { ROOM: 'Phòng', CLEANLINESS: 'Vệ sinh', STAFF: 'Nhân viên', SERVICE: 'Dịch vụ', LOCATION: 'Vị trí', PRICE: 'Giá cả', BREAKFAST: 'Bữa sáng', FOOD: 'Đồ ăn', FACILITIES: 'Tiện nghi', WIFI: 'Wifi', NOISE: 'Tiếng ồn', CHECKIN: 'Nhận phòng', CHECKOUT: 'Trả phòng', BOOKING: 'Đặt phòng', PAYMENT: 'Thanh toán', PARKING: 'Đỗ xe', SECURITY: 'An ninh', AIR_CONDITIONER: 'Điều hòa', BATHROOM: 'Phòng tắm', OTHER: 'Khác' };
-const VIEWS = [['alerts', 'Cần xử lý'], ['all', 'Tất cả']];
+const RUN_STATUS = { SUCCESS: 'Thành công', PARTIAL: 'Một phần', FAILED: 'Lỗi' };
 let data = { reviews: [], runs: {} }, view = 'alerts', platform = '';
 const keep = (k, v) => { try { localStorage.setItem(k, v); } catch (e) {} };
 try { view = localStorage.getItem('view') || view; platform = localStorage.getItem('platform') || ''; $('days').value = localStorage.getItem('days') || '14'; $('reply').value = localStorage.getItem('reply') || ''; } catch (e) {}
@@ -18,7 +18,7 @@ function renderRuns() {
     const run = data.runs[p];
     const c = el('div', 'run ' + p);
     const head = el('div', 'run-head');
-    head.append(platformBadge(p), el('span', 'status ' + (run ? run.status : 'none'), run ? run.status : 'Chưa chạy'));
+    head.append(platformBadge(p), el('span', 'status ' + (run ? run.status : 'none'), run ? RUN_STATUS[run.status] || run.status : 'Chưa chạy'));
     c.append(head);
     if (run) {
       const s = run.summary || {};
@@ -45,7 +45,7 @@ function card(r) {
   main.append(platformBadge(platOf(r)), el('span', 'biz', bizName(r)));
   head.append(main, starsEl(r.rating));
   const meta = el('div', 'card-meta');
-  meta.append(el('span', '', `${r.reviewer_name || 'Ẩn danh'} · ${r.review_date_raw || r.review_date || ''}`), withIcon(el('span', 'chip ' + (r.has_owner_reply ? 'ok' : 'warn'), r.has_owner_reply ? 'Đã phản hồi' : 'Chưa phản hồi'), r.has_owner_reply ? 'circle-check' : 'clock'));
+  meta.append(el('span', '', `${r.reviewer_name || 'Ẩn danh'} · ${r.review_date_raw || r.review_date || ''}`), el('span', 'chip ' + (r.has_owner_reply ? 'ok' : 'warn'), r.has_owner_reply ? 'Đã phản hồi' : 'Chưa phản hồi'));
   c.append(head, meta, reviewBody(r));
   const ai = el('div', 'ai');
   ai.append(el('div', '', r.summary || ''));
@@ -83,7 +83,7 @@ function renderCharts(rows) {
   $('trend').setAttribute('aria-label', `Đánh giá theo ngày trong ${days} ngày qua: ${dated} đánh giá có ngày xác định.`);
   drawChart('trend', {
     type: 'bar',
-    data: { labels: labels.map((d) => d.slice(8) + '/' + d.slice(5, 7)), datasets: plats.map((p) => ({ label: platformName(p), data: perDay(p), backgroundColor: colour[p], borderRadius: 3, maxBarThickness: 22 })) },
+    data: { labels: labels.map((d) => d.slice(8) + '/' + d.slice(5, 7)), datasets: plats.map((p) => ({ label: platformName(p), data: perDay(p), backgroundColor: colour[p], borderRadius: 2, maxBarThickness: 22 })) },
     options: { maintainAspectRatio: false, scales: { x: { stacked: true, grid: { display: false }, ticks: { maxTicksLimit: 8 } }, y: { stacked: true, beginAtZero: true, ticks: { precision: 0 }, grid: { color: token('--line') } } }, plugins: { legend } },
   });
 
@@ -92,7 +92,7 @@ function renderCharts(rows) {
   $('ratings').setAttribute('aria-label', 'Phân bố số sao: ' + stars.map((n) => `${n} sao ${rows.filter((r) => r.rating === n).length}`).join(', ') + '.');
   drawChart('ratings', {
     type: 'bar',
-    data: { labels: stars.map((n) => n + ' ★'), datasets: plats.map((p) => ({ label: platformName(p), data: perStar(p), backgroundColor: colour[p], borderRadius: 3, maxBarThickness: 18 })) },
+    data: { labels: stars.map((n) => n + ' ★'), datasets: plats.map((p) => ({ label: platformName(p), data: perStar(p), backgroundColor: colour[p], borderRadius: 2, maxBarThickness: 18 })) },
     options: { indexAxis: 'y', maintainAspectRatio: false, scales: { x: { stacked: true, beginAtZero: true, ticks: { precision: 0 }, grid: { color: token('--line') } }, y: { stacked: true, grid: { display: false } } }, plugins: { legend } },
   });
 }
@@ -114,11 +114,11 @@ function render() {
 
   const countOf = (p) => base.filter((r) => !p || platOf(r) === p).length;
   segmented($('platforms'), [['', 'Tất cả', countOf('')], ...Object.keys(PLATFORMS).map((p) => [p, platformName(p), countOf(p), p])], platform, (v) => { platform = v; keep('platform', v); render(); });
-  segmented($('views'), VIEWS, view, (v) => { view = v; keep('view', v); render(); });
+  segmented($('views'), [['alerts', 'Cần xử lý', alerts.length], ['all', 'Tất cả', rows.length]], view, (v) => { view = v; keep('view', v); render(); });
 
   const stats = $('stats'); stats.replaceChildren();
-  for (const [label, n, tone, ico] of [['Cần xử lý', alerts.length, 'warn', 'bell'], ['Khẩn cấp', rows.filter((r) => r.priority === 'urgent').length, 'danger', 'triangle-alert'], ['Tiêu cực', rows.filter((r) => r.sentiment === 'negative').length, '', 'ban'], ['Chưa phản hồi', rows.filter((r) => !r.has_owner_reply).length, '', 'clock'], ['Tổng đánh giá', rows.length, '', 'message-square']]) {
-    const k = el('div', 'kpi ' + (n ? tone : '')); k.append(icon(ico), el('b', '', n), el('span', '', label)); stats.append(k);
+  for (const [label, n, tone] of [['Cần xử lý', alerts.length, 'warn'], ['Khẩn cấp', rows.filter((r) => r.priority === 'urgent').length, 'danger'], ['Tiêu cực', rows.filter((r) => r.sentiment === 'negative').length, ''], ['Chưa phản hồi', rows.filter((r) => !r.has_owner_reply).length, ''], ['Tổng đánh giá', rows.length, '']]) {
+    const k = el('div', 'kpi ' + (n ? tone : '')); k.append(el('b', '', n), el('span', '', label)); stats.append(k);
   }
   document.title = (alerts.length ? `(${alerts.length}) ` : '') + 'Cảnh báo đánh giá';
   renderCharts(rows);
