@@ -9,7 +9,7 @@ const MODEL = env.GEMINI_MODEL || 'gemini-3.5-flash-lite';
 
 exports.draftReply = async (r) => {
   const business = (r.businesses && r.businesses.business_name) || 'the business';
-  const lang = r.review_text && r.language && r.language !== 'unknown' ? `The review language code is "${r.language}": reply in that language.` : 'The review has no text: reply in Vietnamese.';
+  const lang = r.review_text && r.language && r.language !== 'unknown' ? `The review language code is "${r.language}": reply in that language.` : 'The review has no text (rating only): reply in English.';
   const prompt = `Business: ${business}\nRating: ${r.rating}/5\nReviewer: ${r.reviewer_name}\nReview: ${r.review_text || '(no text)'}\n${lang}\n\nWrite the owner's reply. Return only the reply text, nothing else.`;
   const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`, {
     method: 'POST',

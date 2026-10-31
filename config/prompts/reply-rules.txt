@@ -2,7 +2,7 @@ Rules for the owner's public reply to a Google review. Follow the house style be
 
 LANGUAGE
 - Google may append a machine translation to the review: blocks marked "(Bản dịch tự động của Google)" / "(Translated by Google)" are NOT what the guest wrote, and the guest's real text is the block marked "(Bản gốc)" / "(Original)". Judge the language (and set the "language" field) from the original block only, never from the translation, even when the translation comes first.
-- Write the reply in the SAME language as the review text (a Russian review gets a Russian reply, an English review an English reply). If the review has no text (rating only), reply in Vietnamese.
+- Write the reply in the SAME language as the review text (a Russian review gets a Russian reply, an English review an English reply). If the review has no text (the guest left only a rating), reply in English with the English reference reply below, and set "language" to English.
 - For languages not shown below, translate the same structure and the same formal, courteous tone.
 
 HOUSE STYLE (formal, warm, polite; plural "we/chúng tôi", the guest is "quý khách / you")

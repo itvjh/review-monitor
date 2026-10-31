@@ -117,7 +117,7 @@ Thêm một chức năng mới theo thứ tự: model -> controller -> view -> d
 
 ## Trang "Nội dung trả lời đánh giá" (kiểm duyệt)
 
-http://127.0.0.1:3020/replies. AI soạn bản nháp trả lời bằng **đúng ngôn ngữ của khách** (khách viết tiếng Nga thì trả lời tiếng Nga; review chỉ có sao thì trả lời tiếng Việt). Quy tắc soạn nằm ở `config/prompts/reply-rules.txt`, dùng chung cho workflow và nút "Tạo bản nháp / Tạo lại".
+http://127.0.0.1:3020/replies. AI soạn bản nháp trả lời bằng **đúng ngôn ngữ của khách** (khách viết tiếng Nga thì trả lời tiếng Nga; review chỉ có sao, không có nội dung, thì mặc định trả lời tiếng Anh). Quy tắc soạn nằm ở `config/prompts/reply-rules.txt`, dùng chung cho workflow và nút "Tạo bản nháp / Tạo lại".
 - Luồng: `chưa có nháp -> chờ duyệt -> đã duyệt -> đã đăng` (hoặc `từ chối -> đưa lại chờ duyệt`). Trạng thái nằm trên bảng `reviews` (`reply_draft`, `reply_final`, `reply_status`), luật chuyển trạng thái ở `dashboard/models/replyRules.js`.
 - Người kiểm duyệt sửa trực tiếp nội dung. Hệ thống kiểm tra tự động: chặn nội dung trống/quá 4000 ký tự; cảnh báo liên kết, email, số điện thoại, lời hứa hoàn tiền/bồi thường/ưu đãi, ký tự giữ chỗ như `[tên]`.
 - **Đăng lên Google**: mặc định chỉ duyệt, đăng tay (sao chép nội dung, mở trang đánh giá Google, bấm "Đã đăng lên Google (đăng tay)"). Đăng tự động chỉ chạy khi bật `REPLY_POSTING` (xem mục "Tự động đăng phản hồi").
