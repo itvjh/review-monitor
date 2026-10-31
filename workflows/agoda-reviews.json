@@ -174,15 +174,122 @@
     {
       "id": "split-businesses",
       "name": "Split Businesses",
-      "type": "n8n-nodes-base.splitOut",
-      "typeVersion": 1,
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
       "position": [
         1640,
         200
       ],
       "parameters": {
-        "fieldToSplitOut": "businesses",
+        "jsCode": "const cfg = $('Config').first().json;\nconst businesses = [...$input.first().json.businesses].sort((a, b) => String(a.business_identifier).localeCompare(String(b.business_identifier), 'en', { numeric: true }));\nreturn businesses.map((business, index) => ({ json: { ...business,\n  // Keep Google's existing total budget; other sources already have a per-property budget.\n  business_limit: cfg.platform === 'google' ? Math.floor(cfg.reviewsPerRun / businesses.length) + (index < cfg.reviewsPerRun % businesses.length ? 1 : 0) : cfg.reviewsPerRun,\n} }));"
+      }
+    },
+    {
+      "id": "business-loop",
+      "name": "Business Loop",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        1880,
+        200
+      ],
+      "parameters": {
+        "batchSize": 1,
         "options": {}
+      }
+    },
+    {
+      "id": "business-ready-",
+      "name": "Business Ready?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        2120,
+        200
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ Boolean($json.id) && $('Business Loop').item.json.business_limit > 0 }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "known-review-ids",
+      "name": "Known Review IDs",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2360,
+        200
+      ],
+      "parameters": {
+        "jsCode": "const rows = $input.all().map(i => i.json);\nconst failed = rows.find(r => r.error);\nreturn [{ json: failed ? { error: failed.error } : { known: rows.map(r => r.review_hash).filter(Boolean) }, pairedItem: { item: 0 } }];"
+      }
+    },
+    {
+      "id": "known-ready-",
+      "name": "Known Ready?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        2600,
+        200
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ !$json.error }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "business-result",
+      "name": "Business Result",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2840,
+        200
+      ],
+      "parameters": {
+        "jsCode": "const business = $('Business Loop').item.json;\nconst upsert = $('Upsert Business').item.json;\nlet response = $input.first().json;\nif (!upsert.id) response = { status: 'ERROR', error_code: 'DATABASE_ERROR', error_message: 'Không lưu được ID cơ sở, bỏ qua cơ sở này.' };\nelse if (business.business_limit === 0) response = { status: 'OK', scanned: 0, reviews: [] };\nelse if (response.error) response = { status: 'ERROR', error_code: 'NETWORK_ERROR', error_message: 'Không đọc được ID đánh giá đã lưu hoặc collector bị lỗi.' };\nreturn [{ json: { business, upsert, response } }];"
       }
     },
     {
@@ -191,8 +298,8 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        1880,
-        200
+        200,
+        460
       ],
       "parameters": {
         "method": "POST",
@@ -230,11 +337,11 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        2120,
-        200
+        440,
+        460
       ],
       "parameters": {
-        "url": "={{ $('Config').first().json.supabaseUrl }}/rest/v1/reviews?select=review_hash&platform=eq.agoda&order=collected_at.desc&limit=500",
+        "url": "={{ $('Config').first().json.supabaseUrl }}/rest/v1/reviews?select=review_hash&platform=eq.agoda&business_id=eq.{{ $json.id }}&order=collected_at.desc&limit=10000",
         "authentication": "genericCredentialType",
         "genericAuthType": "httpHeaderAuth",
         "options": {}
@@ -245,7 +352,6 @@
           "name": "Supabase API Key"
         }
       },
-      "executeOnce": true,
       "alwaysOutputData": true,
       "retryOnFail": true,
       "maxTries": 3,
@@ -258,20 +364,19 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        2360,
-        200
+        680,
+        460
       ],
       "parameters": {
         "method": "POST",
         "url": "={{ $('Config').first().json.collectorUrl }}/agoda/reviews",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ { limit: $('Config').first().json.reviewsPerRun, stopAfterKnown: $('Config').first().json.stopAfterKnown, known: $('Get Known Hashes').all().map((i) => i.json.review_hash).filter(Boolean) } }}",
+        "jsonBody": "={{ { businesses: [$('Business Loop').item.json], limit: $('Business Loop').item.json.business_limit, stopAfterKnown: $('Config').first().json.stopAfterKnown, known: $json.known } }}",
         "options": {
           "timeout": 900000
         }
       },
-      "executeOnce": true,
       "retryOnFail": true,
       "maxTries": 3,
       "waitBetweenTries": 5000,
@@ -283,11 +388,11 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        2600,
-        200
+        920,
+        460
       ],
       "parameters": {
-        "jsCode": "// n8n Code node \"Flatten Reviews\" (run once for all items). Globals: $, $input, $json.\n// Joins the collector response with the Supabase business ids and emits one item per review.\nconst r = $input.first().json;\nconst biz = $('Split Businesses').all().map((i) => i.json);\nconst ups = $('Upsert Business').all().map((i) => i.json);\nconst msg = (e) => String((e && e.message) || e || '');\nconst idMap = {};\nconst errors = [];\nfor (const u of ups) {\n  if (u.id) idMap[u.external_business_id] = u.id;\n  else errors.push({ business: null, error_code: 'DATABASE_ERROR', error_message: msg(u.error), screenshot: null });\n}\nconst nameOf = Object.fromEntries(biz.map((b) => [b.business_identifier, b.business_name]));\nlet fatal = false;\nlet reviews = [];\nif (r.error) { fatal = true; errors.push({ business: null, error_code: 'NETWORK_ERROR', error_message: msg(r.error), screenshot: null }); }\nelse if (r.status !== 'OK') { fatal = true; errors.push({ business: null, error_code: r.error_code || 'UNKNOWN_ERROR', error_message: r.error_message || r.status, screenshot: r.screenshot || null }); }\nelse { reviews = r.reviews || []; for (const e of r.errors || []) errors.push({ business: e.business, error_code: e.error_code, error_message: e.error_message, screenshot: null }); } // per-property failures\nconst out = [];\nconst t0 = Date.now();\nfor (const x of reviews) {\n  if (!idMap[x.business_identifier]) {\n    errors.push({ business: x.business_identifier, error_code: 'BUSINESS_NOT_FOUND', error_message: 'review for a business missing from the locations list', screenshot: null });\n    continue;\n  }\n  // Feed is newest first; 1 ms steps keep that order in collected_at, the dashboard's tie-break inside one day.\n  out.push({ json: { ...x, platform: x.platform || 'google', business_id: idMap[x.business_identifier], business_name: nameOf[x.business_identifier], collected_at: new Date(t0 - out.length).toISOString() } });\n}\n// Sentinel keeps the review loop (and the final summary) running when nothing was scraped.\nif (!out.length) out.push({ json: { _sentinel: true, review_hash: 'none' } });\nout[0].json._stats = { businesses: biz.length, scanned: r.scanned || 0, errors, fatal };\nreturn out;"
+        "jsCode": "// n8n Code node \"Flatten Reviews\" (run once for all items). Globals: $, $input, $json.\n// Joins the collector response with the Supabase business ids and emits one item per review.\nconst first = $input.first().json;\nconst batches = first.business ? $input.all().map(i => i.json) : null;\nconst biz = batches ? batches.map(b => b.business) : $('Split Businesses').all().map((i) => i.json);\nconst ups = batches ? batches.map(b => b.upsert) : $('Upsert Business').all().map((i) => i.json);\nconst r = batches ? { status: 'OK', scanned: batches.reduce((n,b) => n + (b.response.scanned || 0), 0), reviews: batches.flatMap(b => b.response.reviews || []), errors: batches.flatMap(b => b.response.status !== 'OK' ? [{business:b.business.business_identifier,error_code:b.response.error_code || 'UNKNOWN_ERROR',error_message:b.response.error_message || b.response.status}] : b.response.errors || []) } : first;\nconst msg = (e) => String((e && e.message) || e || '');\nconst idMap = {};\nconst errors = [];\nfor (const u of ups) {\n  if (u.id) idMap[u.external_business_id] = u.id;\n  else errors.push({ business: null, error_code: 'DATABASE_ERROR', error_message: msg(u.error), screenshot: null });\n}\nconst nameOf = Object.fromEntries(biz.map((b) => [b.business_identifier, b.business_name]));\nlet fatal = false;\nlet reviews = [];\nif (r.error) { fatal = true; errors.push({ business: null, error_code: 'NETWORK_ERROR', error_message: msg(r.error), screenshot: null }); }\nelse if (r.status !== 'OK') { fatal = true; errors.push({ business: null, error_code: r.error_code || 'UNKNOWN_ERROR', error_message: r.error_message || r.status, screenshot: r.screenshot || null }); }\nelse { reviews = r.reviews || []; for (const e of r.errors || []) errors.push({ business: e.business, error_code: e.error_code, error_message: e.error_message, screenshot: null }); } // per-property failures\nreviews.sort((a,b) => String(a.business_identifier).localeCompare(String(b.business_identifier), 'en', {numeric:true}) || String(a.review_id || a.review_hash).localeCompare(String(b.review_id || b.review_hash), 'en', {numeric:true}));\nconst out = [];\nconst t0 = Date.now();\nfor (const x of reviews) {\n  if (!idMap[x.business_identifier]) {\n    errors.push({ business: x.business_identifier, error_code: 'BUSINESS_NOT_FOUND', error_message: 'review for a business missing from the locations list', screenshot: null });\n    continue;\n  }\n  // Feed is newest first; 1 ms steps keep that order in collected_at, the dashboard's tie-break inside one day.\n  out.push({ json: { ...x, platform: x.platform || 'google', business_id: idMap[x.business_identifier], business_name: nameOf[x.business_identifier], collected_at: new Date(t0 - out.length).toISOString() } });\n}\n// Sentinel keeps the review loop (and the final summary) running when nothing was scraped.\nif (!out.length) out.push({ json: { _sentinel: true, review_hash: 'none' } });\nout[0].json._stats = { businesses: biz.length, scanned: r.scanned || 0, errors, fatal };\nreturn out;"
       },
       "alwaysOutputData": true
     },
@@ -297,8 +402,8 @@
       "type": "n8n-nodes-base.splitInBatches",
       "typeVersion": 3,
       "position": [
-        2840,
-        200
+        1160,
+        460
       ],
       "parameters": {
         "batchSize": 1,
@@ -311,7 +416,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        200,
+        1400,
         460
       ],
       "parameters": {
@@ -338,7 +443,7 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        440,
+        1640,
         460
       ],
       "parameters": {
@@ -372,7 +477,7 @@
       "type": "n8n-nodes-base.wait",
       "typeVersion": 1.1,
       "position": [
-        680,
+        1880,
         460
       ],
       "parameters": {
@@ -386,7 +491,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        920,
+        2120,
         460
       ],
       "parameters": {
@@ -418,11 +523,11 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1160,
+        2360,
         460
       ],
       "parameters": {
-        "jsCode": "// n8n Code node \"Validate AI\" (run once for each item). Globals: $, $json.\n// Never trust model output: parse, check enums, clamp numbers, drop unknown categories, enforce the rating->priority floor.\nconst r = $('Review Loop').item.json;\nconst CATS = ['ROOM','CLEANLINESS','STAFF','SERVICE','LOCATION','PRICE','BREAKFAST','FOOD','FACILITIES','WIFI','NOISE','CHECKIN','CHECKOUT','BOOKING','PAYMENT','PARKING','SECURITY','AIR_CONDITIONER','BATHROOM','BED','VIEW','POOL','RESTAURANT','OTHER'];\nconst SENT = ['positive', 'neutral', 'negative'];\nconst PRI = ['low', 'medium', 'high', 'urgent'];\nconst fail = (m) => ({ json: { ...r, ai_ok: false, ai_error: m } });\nif ($json.error) return fail(String($json.error.message || $json.error));\nlet a;\ntry { a = JSON.parse($json.candidates[0].content.parts.map((p) => p.text).join('')); } catch (e) { return fail('invalid JSON from model'); }\nif (!SENT.includes(a.sentiment) || !PRI.includes(a.priority)) return fail('schema violation');\nconst floor = r.rating <= 2 ? 2 : r.rating === 3 ? 1 : 0; // rating sets the minimum priority\nconst priority = PRI[Math.max(PRI.indexOf(a.priority), floor)];\nconst clamp = (n, lo, hi) => Math.max(lo, Math.min(hi, Number(n) || 0));\nreturn { json: {\n  ...r, ai_ok: true,\n  sentiment: a.sentiment,\n  sentiment_score: Math.round(clamp(a.sentiment_score, -100, 100)),\n  category: (Array.isArray(a.category) ? a.category : []).filter((c) => CATS.includes(c)),\n  priority,\n  requires_attention: Boolean(a.requires_attention) || priority === 'urgent',\n  summary: String(a.summary || ''),\n  key_points: Array.isArray(a.key_points) ? a.key_points.map(String) : [],\n  suggested_action: String(a.suggested_action || ''),\n  language: String(a.language || 'unknown'),\n  reply_draft: r.has_owner_reply ? '' : String(a.reply_draft || '').trim().slice(0, 3500), // human moderates it later\n  ai_confidence: clamp(a.ai_confidence, 0, 1),\n  analyzed_at: new Date().toISOString(),\n} };",
+        "jsCode": "// n8n Code node \"Validate AI\" (run once for each item). Globals: $, $json.\n// Never trust model output: parse, check enums, clamp numbers, drop unknown categories, enforce the rating->priority floor.\nconst r = $('Review Loop').item.json;\nconst CATS = ['ROOM','CLEANLINESS','STAFF','SERVICE','LOCATION','PRICE','BREAKFAST','FOOD','FACILITIES','WIFI','NOISE','CHECKIN','CHECKOUT','BOOKING','PAYMENT','PARKING','SECURITY','AIR_CONDITIONER','BATHROOM','BED','VIEW','POOL','RESTAURANT','OTHER'];\nconst SENT = ['positive', 'neutral', 'negative'];\nconst PRI = ['low', 'medium', 'high', 'urgent'];\nconst fail = (m) => ({ json: { ...r, ai_ok: false, ai_error: m } });\nif ($json.error) return fail(String($json.error.message || $json.error));\nlet a;\ntry { a = JSON.parse($json.candidates[0].content.parts.map((p) => p.text).join('')); } catch (e) { return fail('invalid JSON from model'); }\nif (!SENT.includes(a.sentiment) || !PRI.includes(a.priority)) return fail('schema violation');\nconst floor = r.rating <= 2 ? 2 : r.rating === 3 ? 1 : 0; // rating sets the minimum priority\nconst priority = PRI[Math.max(PRI.indexOf(a.priority), floor)];\nconst clamp = (n, lo, hi) => Math.max(lo, Math.min(hi, Number(n) || 0));\nreturn { json: {\n  ...r, ai_ok: true,\n  sentiment: a.sentiment,\n  sentiment_score: Math.round(clamp(a.sentiment_score, -100, 100)),\n  category: (Array.isArray(a.category) ? a.category : []).filter((c) => CATS.includes(c)),\n  priority,\n  requires_attention: Boolean(a.requires_attention) || priority === 'urgent',\n  summary: String(a.summary || ''),\n  key_points: Array.isArray(a.key_points) ? a.key_points.map(String) : [],\n  suggested_action: String(a.suggested_action || ''),\n  language: String(a.language || 'unknown'),\n  reply_draft: r.has_owner_reply || r.reply_allowed === false ? '' : String(a.reply_draft || '').trim().slice(0, 3500), // human moderates it later\n  ai_confidence: clamp(a.ai_confidence, 0, 1),\n  analyzed_at: new Date().toISOString(),\n} };",
         "mode": "runOnceForEachItem"
       }
     },
@@ -432,7 +537,7 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        1400,
+        2600,
         460
       ],
       "parameters": {
@@ -466,7 +571,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        1640,
+        2840,
         460
       ],
       "parameters": {
@@ -485,7 +590,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ { platform: $json.platform, business_id: $json.business_id, review_hash: $json.review_hash, external_review_id: $json.review_id || null, reviewer_name: $json.reviewer_name, rating: $json.rating, review_text: $json.review_text || '', review_date: $json.review_date || null, review_date_raw: $json.review_date_text || null, owner_reply: $json.owner_reply || null, has_owner_reply: !!$json.has_owner_reply, sentiment: $json.sentiment, sentiment_score: $json.sentiment_score, category: $json.category, priority: $json.priority, requires_attention: $json.requires_attention, summary: $json.summary, suggested_action: $json.suggested_action, language: $json.language, ai_confidence: $json.ai_confidence, reply_draft: $json.reply_draft || null, reply_status: ($json.reply_draft && !$json.has_owner_reply) ? 'pending' : null, raw_data: { key_points: $json.key_points, source_score: $json.raw_score === undefined ? null : $json.raw_score }, collected_at: $json.collected_at, analyzed_at: $json.analyzed_at } }}",
+        "jsonBody": "={{ { platform: $json.platform, business_id: $json.business_id, review_hash: $json.review_hash, external_review_id: $json.review_id || null, reviewer_name: $json.reviewer_name, rating: $json.rating, review_text: $json.review_text || '', review_date: $json.review_date || null, review_date_raw: $json.review_date_text || null, owner_reply: $json.owner_reply || null, has_owner_reply: !!$json.has_owner_reply, sentiment: $json.sentiment, sentiment_score: $json.sentiment_score, category: $json.category, priority: $json.priority, requires_attention: $json.requires_attention, summary: $json.summary, suggested_action: $json.suggested_action, language: $json.language, ai_confidence: $json.ai_confidence, reply_draft: $json.reply_draft || null, reply_status: ($json.reply_draft && !$json.has_owner_reply) ? 'pending' : null, raw_data: { source_locator: $json.source_locator || null, reply_allowed: $json.reply_allowed === undefined ? null : $json.reply_allowed, key_points: $json.key_points, source_score: $json.raw_score === undefined ? null : $json.raw_score }, collected_at: $json.collected_at, analyzed_at: $json.analyzed_at } }}",
         "options": {}
       },
       "credentials": {
@@ -506,8 +611,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1880,
-        460
+        200,
+        720
       ],
       "parameters": {
         "jsCode": "// n8n Code node \"Run Summary\" (run once for all items). Globals: $, $input.\n// Fires when the review loop is done; its input is every item that looped back (saved, skipped or failed).\nconst cfg = $('Config').first().json;\nconst stats = $('Flatten Reviews').first().json._stats;\nconst items = $input.all().map((i) => i.json);\nconst saved = items.filter((r) => r.id && r.sentiment);\nconst aiFail = items.filter((r) => r.ai_ok === false).length;\nconst dbFail = items.filter((r) => r.error).length;\nconst now = new Date().toISOString();\nconst errors = stats.errors.map((e) => ({ ...e, timestamp: now }));\nif (aiFail) errors.push({ business: null, error_code: 'AI_ERROR', error_message: aiFail + ' review(s) not analyzed; retried next run', screenshot: null, timestamp: now });\nif (dbFail) errors.push({ business: null, error_code: 'DATABASE_ERROR', error_message: dbFail + ' review(s) failed to save/check', screenshot: null, timestamp: now });\nconst count = (f) => saved.filter(f).length;\nconst summary = {\n  platform: cfg.platform || 'google',\n  businesses_checked: stats.businesses,\n  reviews_scanned: stats.scanned,\n  new_reviews: saved.length,\n  positive_reviews: count((r) => r.sentiment === 'positive'),\n  neutral_reviews: count((r) => r.sentiment === 'neutral'),\n  negative_reviews: count((r) => r.sentiment === 'negative'),\n  urgent_reviews: count((r) => r.priority === 'urgent'),\n  errors: errors.length,\n  started_at: cfg.startedAt,\n  completed_at: now,\n};\nconst status = stats.fatal ? 'FAILED' : errors.length ? 'PARTIAL' : 'SUCCESS';\nreturn [{ json: { status, summary, errors, error_code: errors.length ? errors[0].error_code : null, message: errors.map((e) => e.error_code + ': ' + e.error_message).join('\\n') } }];"
@@ -519,8 +624,8 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        2120,
-        460
+        440,
+        720
       ],
       "parameters": {
         "method": "POST",
@@ -631,6 +736,24 @@
       "main": [
         [
           {
+            "node": "Business Loop",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Business Loop": {
+      "main": [
+        [
+          {
+            "node": "Flatten Reviews",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
             "node": "Upsert Business",
             "type": "main",
             "index": 0
@@ -642,7 +765,25 @@
       "main": [
         [
           {
+            "node": "Business Ready?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Business Ready?": {
+      "main": [
+        [
+          {
             "node": "Get Known Hashes",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Business Result",
             "type": "main",
             "index": 0
           }
@@ -653,7 +794,36 @@
       "main": [
         [
           {
+            "node": "Known Review IDs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Known Review IDs": {
+      "main": [
+        [
+          {
+            "node": "Known Ready?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Known Ready?": {
+      "main": [
+        [
+          {
             "node": "Browser: Read Reviews",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Business Result",
             "type": "main",
             "index": 0
           }
@@ -664,7 +834,18 @@
       "main": [
         [
           {
-            "node": "Flatten Reviews",
+            "node": "Business Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Business Result": {
+      "main": [
+        [
+          {
+            "node": "Business Loop",
             "type": "main",
             "index": 0
           }

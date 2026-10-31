@@ -23,7 +23,7 @@ return { json: {
   key_points: Array.isArray(a.key_points) ? a.key_points.map(String) : [],
   suggested_action: String(a.suggested_action || ''),
   language: String(a.language || 'unknown'),
-  reply_draft: r.has_owner_reply ? '' : String(a.reply_draft || '').trim().slice(0, 3500), // human moderates it later
+  reply_draft: r.has_owner_reply || r.reply_allowed === false ? '' : String(a.reply_draft || '').trim().slice(0, 3500), // human moderates it later
   ai_confidence: clamp(a.ai_confidence, 0, 1),
   analyzed_at: new Date().toISOString(),
 } };

@@ -66,7 +66,12 @@ ${fs.readFileSync(path.join(__dirname, '..', 'config', 'prompts', 'reply-rules.t
 node('Browser: Get Businesses', 'httpRequest', 4.2, { url: `={{ $json.collectorUrl }}${P.businesses}`, options: { timeout: 300000 } }, retry);
 node('Auth Check', 'if', 2.2, ifBool("$json.status === 'OK' && Array.isArray($json.businesses) && $json.businesses.length > 0"));
 node('Auth Summary', 'code', 2, codeFile('auth-summary'));
-node('Split Businesses', 'splitOut', 1, { fieldToSplitOut: 'businesses', options: {} });
+node('Split Businesses', 'code', 2, codeFile('prepare-businesses'));
+node('Business Loop', 'splitInBatches', 3, { batchSize: 1, options: {} });
+node('Business Ready?', 'if', 2.2, ifBool("Boolean($json.id) && $('Business Loop').item.json.business_limit > 0"));
+node('Known Review IDs', 'code', 2, codeFile('known-review-ids'));
+node('Known Ready?', 'if', 2.2, ifBool('!$json.error'));
+node('Business Result', 'code', 2, codeFile('business-result'));
 node('Upsert Business', 'httpRequest', 4.2, {
   method: 'POST',
   url: sbUrl('businesses?on_conflict=platform,external_business_id'),
@@ -78,18 +83,18 @@ node('Upsert Business', 'httpRequest', 4.2, {
   options: {},
 }, { credentials: SB, ...retry });
 node('Get Known Hashes', 'httpRequest', 4.2, {
-  url: sbUrl(`reviews?select=review_hash&platform=eq.${PLATFORM}&order=collected_at.desc&limit=500`),
+  url: sbUrl(`reviews?select=review_hash&platform=eq.${PLATFORM}&business_id=eq.{{ $json.id }}&order=collected_at.desc&limit=10000`),
   ...headerAuth,
   options: {},
-}, { credentials: SB, executeOnce: true, alwaysOutputData: true, ...retry });
+}, { credentials: SB, alwaysOutputData: true, ...retry });
 node('Browser: Read Reviews', 'httpRequest', 4.2, {
   method: 'POST',
   url: `={{ ${CFG}.collectorUrl }}${P.reviews}`,
   sendBody: true,
   specifyBody: 'json',
-  jsonBody: `={{ { limit: ${CFG}.reviewsPerRun, stopAfterKnown: ${CFG}.stopAfterKnown, known: $('Get Known Hashes').all().map((i) => i.json.review_hash).filter(Boolean) } }}`,
+  jsonBody: `={{ { businesses: [$('Business Loop').item.json], limit: $('Business Loop').item.json.business_limit, stopAfterKnown: ${CFG}.stopAfterKnown, known: $json.known } }}`,
   options: { timeout: 900000 },
-}, { executeOnce: true, ...retry });
+}, retry);
 node('Flatten Reviews', 'code', 2, codeFile('flatten-reviews'), { alwaysOutputData: true });
 
 // ---------- 3. per-review loop: dedupe -> AI -> validate -> save ----------
@@ -119,7 +124,7 @@ node('Save Review', 'httpRequest', 4.2, {
   ...prefer('resolution=ignore-duplicates,return=representation'),
   sendBody: true,
   specifyBody: 'json',
-  jsonBody: "={{ { platform: $json.platform, business_id: $json.business_id, review_hash: $json.review_hash, external_review_id: $json.review_id || null, reviewer_name: $json.reviewer_name, rating: $json.rating, review_text: $json.review_text || '', review_date: $json.review_date || null, review_date_raw: $json.review_date_text || null, owner_reply: $json.owner_reply || null, has_owner_reply: !!$json.has_owner_reply, sentiment: $json.sentiment, sentiment_score: $json.sentiment_score, category: $json.category, priority: $json.priority, requires_attention: $json.requires_attention, summary: $json.summary, suggested_action: $json.suggested_action, language: $json.language, ai_confidence: $json.ai_confidence, reply_draft: $json.reply_draft || null, reply_status: ($json.reply_draft && !$json.has_owner_reply) ? 'pending' : null, raw_data: { key_points: $json.key_points, source_score: $json.raw_score === undefined ? null : $json.raw_score }, collected_at: $json.collected_at, analyzed_at: $json.analyzed_at } }}",
+  jsonBody: "={{ { platform: $json.platform, business_id: $json.business_id, review_hash: $json.review_hash, external_review_id: $json.review_id || null, reviewer_name: $json.reviewer_name, rating: $json.rating, review_text: $json.review_text || '', review_date: $json.review_date || null, review_date_raw: $json.review_date_text || null, owner_reply: $json.owner_reply || null, has_owner_reply: !!$json.has_owner_reply, sentiment: $json.sentiment, sentiment_score: $json.sentiment_score, category: $json.category, priority: $json.priority, requires_attention: $json.requires_attention, summary: $json.summary, suggested_action: $json.suggested_action, language: $json.language, ai_confidence: $json.ai_confidence, reply_draft: $json.reply_draft || null, reply_status: ($json.reply_draft && !$json.has_owner_reply) ? 'pending' : null, raw_data: { source_locator: $json.source_locator || null, reply_allowed: $json.reply_allowed === undefined ? null : $json.reply_allowed, key_points: $json.key_points, source_score: $json.raw_score === undefined ? null : $json.raw_score }, collected_at: $json.collected_at, analyzed_at: $json.analyzed_at } }}",
   options: {},
 }, { credentials: SB, alwaysOutputData: true, ...retry });
 
@@ -143,10 +148,14 @@ const links = [
   ['Browser: Get Businesses', 'Auth Check'],
   ['Auth Check', 'Split Businesses', 0], ['Auth Check', 'Auth Summary', 1],
   ['Auth Summary', 'Save Run'],
-  ['Split Businesses', 'Upsert Business'],
-  ['Upsert Business', 'Get Known Hashes'],
-  ['Get Known Hashes', 'Browser: Read Reviews'],
-  ['Browser: Read Reviews', 'Flatten Reviews'],
+  ['Split Businesses', 'Business Loop'],
+  ['Business Loop', 'Flatten Reviews', 0], ['Business Loop', 'Upsert Business', 1],
+  ['Upsert Business', 'Business Ready?'],
+  ['Business Ready?', 'Get Known Hashes', 0], ['Business Ready?', 'Business Result', 1],
+  ['Get Known Hashes', 'Known Review IDs'], ['Known Review IDs', 'Known Ready?'],
+  ['Known Ready?', 'Browser: Read Reviews', 0], ['Known Ready?', 'Business Result', 1],
+  ['Browser: Read Reviews', 'Business Result'],
+  ['Business Result', 'Business Loop'],
   ['Flatten Reviews', 'Review Loop'],
   ['Review Loop', 'Run Summary', 0], ['Review Loop', 'Check Existing', 1],
   ['Check Existing', 'Is New?'],

@@ -43,6 +43,8 @@ const items = (...a) => a.map((json) => ({ json }));
   assert.strictEqual(v.json.sentiment_score, -100);
   assert.strictEqual(v.json.ai_confidence, 1);
   assert.strictEqual(v.json.reply_draft, '');
+  const locked = await run('validate-ai', { $: () => ({ item: { json: { ...review, reply_allowed: false } } }), $input: null, $json: gem(JSON.stringify({ sentiment: 'positive', priority: 'low', reply_draft: 'Must not generate for locked reviews' })) });
+  assert.strictEqual(locked.json.reply_draft, '');
   const withDraft = gem(JSON.stringify({ sentiment: 'positive', priority: 'low', reply_draft: '  Cảm ơn quý khách!  ' }));
   assert.strictEqual((await run('validate-ai', { $: $2, $input: null, $json: withDraft })).json.reply_draft, 'Cảm ơn quý khách!');
   const $replied = () => ({ item: { json: { ...review, has_owner_reply: true } } });
