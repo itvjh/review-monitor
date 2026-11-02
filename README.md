@@ -34,7 +34,7 @@ n8n dùng **Business Loop** để chạy một ID cơ sở mỗi lượt: lưu c
 
 Mở `http://localhost:3020/crawl` (mục **Chạy crawl** trên thanh điều hướng). Bấm **Crawl ngay** cho một nền tảng, hoặc chọn nhiều nền tảng rồi bấm **Chạy mục đã chọn**; **Chạy tất cả** xếp tất cả nền tảng còn trống vào hàng đợi. Chỉ máy quản trị có quyền khởi chạy, người xem qua mạng nội bộ chỉ xem trạng thái.
 
-Dashboard gọi đúng workflow n8n đã có bằng `n8n execute --id=...`, cùng cách với lệnh crawl thủ công. Các lượt thủ công từ dashboard chạy lần lượt, dùng cổng runner 5690 và không xếp trùng nền tảng còn đang chạy/chờ. Chrome cá nhân phải mở và collector phải chạy; lịch tự động vẫn giữ nguyên. Không đồng thời chạy thêm `npm run crawl` vì CLI dùng chung cổng runner thủ công.
+Dashboard gọi đúng workflow n8n đã có bằng `n8n execute --id=...`, cùng cách với lệnh crawl thủ công. Các lượt thủ công từ dashboard chạy lần lượt, mỗi lượt dùng một cổng runner còn trống và không xếp trùng nền tảng còn đang chạy/chờ. Chrome cá nhân phải mở và collector phải chạy; lịch tự động vẫn giữ nguyên. Không đồng thời chạy thêm `npm run crawl` vì CLI dùng chung cổng runner thủ công.
 
 Trang cập nhật trạng thái mỗi 3 giây, hiển thị số cơ sở, đánh giá quét, đánh giá mới và lỗi khi n8n trả bản tổng kết. Workflow có thể hoàn tất một phần hoặc lỗi đăng nhập dù tiến trình n8n đã kết thúc. Lịch sử tối đa 50 lượt chỉ tồn tại trong phiên dashboard hiện tại; đừng khởi động lại dashboard khi đang crawl. Đóng tab trình duyệt không dừng lượt chạy. Một lượt vượt 60 phút sẽ bị dừng và báo lỗi. Không gửi raw output của n8n ra giao diện vì node có thể chứa credential.
 

@@ -1,5 +1,6 @@
 // Runs the existing n8n CLI workflow. Raw node output may contain credentials: never log or return it.
 const { spawn, execFile } = require('child_process');
+const net = require('net');
 const path = require('path');
 const root = path.join(__dirname, '../..');
 const OUTPUT_LIMIT = 32 * 1024 * 1024;
@@ -26,13 +27,21 @@ function resultOf(output, code) {
   return { summary, outcome, errorCodes };
 }
 
-function execute(workflowId) {
+// n8n's task broker needs a TCP port of its own (the running n8n server has 5679). A fixed one is held for good by a crawl that outlived a restart, so take a free one each run.
+const freePort = () => new Promise((ok, fail) => {
+  const server = net.createServer();
+  server.once('error', fail);
+  server.listen(0, '127.0.0.1', () => { const { port } = server.address(); server.close(() => ok(port)); });
+});
+
+async function execute(workflowId) {
   // IDs come only from the platform registry; also validate before passing through Windows' command shim.
-  if (!/^[a-zA-Z0-9_-]+$/.test(workflowId)) return Promise.reject(new Error('ID workflow không hợp lệ.'));
+  if (!/^[a-zA-Z0-9_-]+$/.test(workflowId)) throw new Error('ID workflow không hợp lệ.');
+  const port = await freePort();
   return new Promise((resolve, reject) => {
     const child = spawn('n8n', ['execute', '--id=' + workflowId], {
       cwd: root, shell: true, windowsHide: true, stdio: ['ignore', 'pipe', 'ignore'],
-      env: { ...process.env, N8N_RUNNERS_BROKER_PORT: '5690' },
+      env: { ...process.env, N8N_RUNNERS_BROKER_PORT: String(port) },
     });
     let output = '', timedOut = false;
     child.stdout.setEncoding('utf8');
