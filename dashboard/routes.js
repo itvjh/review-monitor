@@ -25,6 +25,7 @@ const routes = {
   'GET /vendor/chart.js': page.vendor('chart.js/dist/chart.umd.js', 'text/javascript; charset=utf-8'),
   ...Object.fromEntries(Object.values(platforms).filter((p) => p.logo).map((p) => [`GET ${p.logo}`, page.file(p.logo.slice(1))])), // /logos/<id>.svg
   'GET /api/data': data.index,
+  'POST /api/reviews/handled': data.handled,
   'GET /api/replies': reply.index,
   'POST /api/replies/lint': reply.lint,
   'POST /api/replies/action': reply.act,

@@ -1,7 +1,7 @@
 const TABS = [['pending', 'Chờ duyệt'], ['approved', 'Đã duyệt'], ['posted', 'Đã đăng'], ['rejected', 'Từ chối'], ['none', 'Chưa có bản nháp']];
 const LANG = { vi: 'Tiếng Việt', en: 'Tiếng Anh', ru: 'Tiếng Nga', ko: 'Tiếng Hàn', ja: 'Tiếng Nhật', zh: 'Tiếng Trung', fr: 'Tiếng Pháp', de: 'Tiếng Đức', th: 'Tiếng Thái' };
 const AUTO = Object.keys(PLATFORMS).filter((id) => PLATFORMS[id].autoReply); // platforms the posting queue handles
-let status = 'pending', platform = '', busy = false, canModerate = false, posting = 'off', gapSeconds = 300;
+let status = 'pending', platform = '', page = 1, busy = false, canModerate = false, posting = 'off', gapSeconds = 300;
 const selected = new Set(); // pending replies ticked for bulk approval
 const areas = new Map(); // review id -> its textarea (bulk approval sends the text as edited)
 let names = new Map(); // review id -> reviewer name, to explain skipped items
@@ -19,6 +19,7 @@ const post = async (path, body) => {
 };
 const note = (text, bad) => { const m = $('msg'); m.replaceChildren(); if (text) m.append(el('div', bad ? 'banner' : 'banner ok', text)); };
 const hhmm = (iso) => new Date(iso).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+const low = (r) => r.rating <= 3; // 1-3 stars: never drafted or approved in bulk; a person handles it from the alerts list
 const platOf = (r) => (PLATFORMS[r.platform] ? r.platform : 'google');
 
 function warningsBox(box, warnings) {
@@ -50,7 +51,7 @@ function card(r) {
   const head = el('div', 'head');
   const main = el('div', 'head-main');
   if (status === 'pending' && canModerate) {
-    const box = el('input'); box.type = 'checkbox'; box.checked = selected.has(r.id); box.setAttribute('aria-label', 'Chọn để duyệt hàng loạt: ' + (r.reviewer_name || 'Ẩn danh'));
+    const box = el('input'); box.type = 'checkbox'; box.checked = selected.has(r.id); box.disabled = low(r); box.setAttribute('aria-label', 'Chọn để duyệt hàng loạt: ' + (r.reviewer_name || 'Ẩn danh'));
     box.addEventListener('change', () => { box.checked ? selected.add(r.id) : selected.delete(r.id); updateBulkButton(); });
     main.append(box);
   }
@@ -60,6 +61,7 @@ function card(r) {
   const meta = el('div', 'card-meta');
   meta.append(el('span', '', `${r.reviewer_name || 'Ẩn danh'} · ${r.review_date_raw || r.review_date || ''}`), el('span', 'chip', 'Ngôn ngữ khách: ' + lang));
   c.append(head, meta, reviewBody(r));
+  if (low(r) && !r.has_owner_reply) c.append(el('div', 'warning warn', 'Đánh giá 1-3 sao: không tự động trả lời. Xem ở mục "Cần xử lý" trên trang Cảnh báo; chỉ duyệt từng bài sau khi đọc kỹ.'));
 
   if (status === 'none') {
     if (r.raw_data?.reply_allowed === false) { c.append(el('p', 'meta', 'Nền tảng không hỗ trợ trả lời đánh giá này.')); return c; }
@@ -123,8 +125,8 @@ function bulkBar(items) {
   const all = el('input'); all.type = 'checkbox'; all.id = 'all';
   const label = el('label', '', 'Chọn tất cả'); label.prepend(all);
   all.addEventListener('change', () => {
-    items.forEach((r) => (all.checked ? selected.add(r.id) : selected.delete(r.id)));
-    document.querySelectorAll('.card .head input[type=checkbox]').forEach((b) => { b.checked = all.checked; });
+    items.filter((r) => !low(r)).forEach((r) => (all.checked ? selected.add(r.id) : selected.delete(r.id)));
+    document.querySelectorAll('.card .head input[type=checkbox]:not(:disabled)').forEach((b) => { b.checked = all.checked; });
     updateBulkButton();
   });
   bulkButton = el('button', 'btn primary');
@@ -178,21 +180,23 @@ async function load() {
     const m = $('mode'); m.replaceChildren();
     if (canModerate && posting === 'dry-run') m.append(el('div', 'banner warn', 'Chế độ CHẠY THỬ: không có gì được đăng thật.'));
     $('role').textContent = canModerate ? '' : 'Chế độ chỉ xem';
-    const res = await fetch('/api/replies?status=' + status + (platform ? '&platform=' + platform : ''));
+    const res = await fetch('/api/replies?status=' + status + (platform ? '&platform=' + platform : '') + '&page=' + page);
     const j = await res.json();
     if (!res.ok) throw new Error(j.error);
+    if (page > j.pages) { page = j.pages; return load(); } // the last page emptied out (everything on it was approved, say)
 
     const count = (p) => (j.platforms[p || 'all'] || {})[status] || 0;
-    segmented($('platforms'), [['', 'Tất cả', count('')], ...Object.keys(PLATFORMS).map((p) => [p, platformName(p), count(p), p])], platform, (v) => { platform = v; selected.clear(); keep('replyPlatform', v); note(''); load(); });
-    segmented($('tabs'), TABS.map(([key, label]) => [key, label, j.counts[key]]), status, (v) => { status = v; selected.clear(); keep('replyTab', v); note(''); load(); });
+    segmented($('platforms'), [['', 'Tất cả', count('')], ...Object.keys(PLATFORMS).map((p) => [p, platformName(p), count(p), p])], platform, (v) => { platform = v; selected.clear(); page = 1; keep('replyPlatform', v); note(''); load(); });
+    segmented($('tabs'), TABS.map(([key, label]) => [key, label, j.counts[key]]), status, (v) => { status = v; selected.clear(); page = 1; keep('replyTab', v); note(''); load(); });
     document.title = (j.counts.pending ? `(${j.counts.pending}) ` : '') + 'Trả lời đánh giá';
 
     const list = $('list'); list.replaceChildren();
+    pager($('pager'), page, j.pages, (to) => { page = to; selected.clear(); window.scrollTo(0, 0); load(); });
     areas.clear(); bulkButton = null;
     names = new Map(j.items.map((r) => [r.id, r.reviewer_name]));
     for (const id of [...selected]) if (!names.has(id)) selected.delete(id);
     if (!j.items.length) return list.append(el('div', 'empty-state', 'Không có mục nào.'));
-    if (j.counts[status] > j.items.length) list.append(el('div', 'meta', `Đang hiển thị ${j.items.length} bài mới nhất trong ${j.counts[status]} bài.`));
+    if (j.pages > 1) list.append(el('div', 'meta', `Bài ${(page - 1) * j.pageSize + 1} đến ${(page - 1) * j.pageSize + j.items.length} trong ${j.counts[status]} bài.`));
     if (status === 'pending' && canModerate) list.append(bulkBar(j.items));
     if (platform) return j.items.forEach((r) => list.append(card(r)));
     for (const p of Object.keys(PLATFORMS)) { // all platforms: one clearly labelled section each

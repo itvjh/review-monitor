@@ -46,7 +46,11 @@ const items = (...a) => a.map((json) => ({ json }));
   const locked = await run('validate-ai', { $: () => ({ item: { json: { ...review, reply_allowed: false } } }), $input: null, $json: gem(JSON.stringify({ sentiment: 'positive', priority: 'low', reply_draft: 'Must not generate for locked reviews' })) });
   assert.strictEqual(locked.json.reply_draft, '');
   const withDraft = gem(JSON.stringify({ sentiment: 'positive', priority: 'low', reply_draft: '  Cảm ơn quý khách!  ' }));
-  assert.strictEqual((await run('validate-ai', { $: $2, $input: null, $json: withDraft })).json.reply_draft, 'Cảm ơn quý khách!');
+  assert.strictEqual((await run('validate-ai', { $: $2, $input: null, $json: withDraft })).json.reply_draft, ''); // 1-3 stars: no automatic draft
+  const $three = () => ({ item: { json: { ...review, rating: 3 } } });
+  assert.strictEqual((await run('validate-ai', { $: $three, $input: null, $json: withDraft })).json.reply_draft, '');
+  const $four = () => ({ item: { json: { ...review, rating: 4 } } });
+  assert.strictEqual((await run('validate-ai', { $: $four, $input: null, $json: withDraft })).json.reply_draft, 'Cảm ơn quý khách!');
   const $replied = () => ({ item: { json: { ...review, has_owner_reply: true } } });
   assert.strictEqual((await run('validate-ai', { $: $replied, $input: null, $json: withDraft })).json.reply_draft, ''); // already answered: no draft
   assert.strictEqual((await run('validate-ai', { $: $2, $input: null, $json: gem('not json') })).json.ai_ok, false);

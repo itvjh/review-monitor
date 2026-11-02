@@ -1,12 +1,22 @@
 const PRI = { urgent: 'Khẩn cấp', high: 'Cao', medium: 'Trung bình', low: 'Thấp' };
 const CAT = { ROOM: 'Phòng', CLEANLINESS: 'Vệ sinh', STAFF: 'Nhân viên', SERVICE: 'Dịch vụ', LOCATION: 'Vị trí', PRICE: 'Giá cả', BREAKFAST: 'Bữa sáng', FOOD: 'Đồ ăn', FACILITIES: 'Tiện nghi', WIFI: 'Wifi', NOISE: 'Tiếng ồn', CHECKIN: 'Nhận phòng', CHECKOUT: 'Trả phòng', BOOKING: 'Đặt phòng', PAYMENT: 'Thanh toán', PARKING: 'Đỗ xe', SECURITY: 'An ninh', AIR_CONDITIONER: 'Điều hòa', BATHROOM: 'Phòng tắm', OTHER: 'Khác' };
 const RUN_STATUS = { SUCCESS: 'Thành công', PARTIAL: 'Một phần', FAILED: 'Lỗi' };
-let data = { reviews: [], runs: {} }, view = 'alerts', platform = '';
+let data = { reviews: [], runs: {} }, view = 'alerts', platform = '', page = 1, pageKey = '';
+const PAGE_SIZE = 20; // cards drawn at once
 const keep = (k, v) => { try { localStorage.setItem(k, v); } catch (e) {} };
 try { view = localStorage.getItem('view') || view; platform = localStorage.getItem('platform') || ''; $('days').value = localStorage.getItem('days') || '14'; $('reply').value = localStorage.getItem('reply') || ''; } catch (e) {}
 if (platform && !PLATFORMS[platform]) platform = '';
 
-const isAlert = (r) => r.rating <= 2 || r.requires_attention || r.priority === 'urgent';
+const needsAction = (r) => r.rating <= 3 || r.requires_attention || r.priority === 'urgent';
+const isAlert = (r) => needsAction(r) && !r.handled_at; // "Đã xử lý" takes a review off the alerts list
+let canModerate = false;
+const setHandled = async (r, handled) => {
+  try {
+    const res = await fetch('/api/reviews/handled', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ id: r.id, handled }) });
+    const j = await res.json(); if (!res.ok) throw new Error(j.error);
+    r.handled_at = handled ? new Date().toISOString() : null; render();
+  } catch (e) { $('status').textContent = 'Không lưu được: ' + e.message; }
+};
 const bizName = (r) => (r.businesses && r.businesses.business_name) || '—';
 const platOf = (r) => (PLATFORMS[r.platform] ? r.platform : 'google');
 
@@ -54,6 +64,16 @@ function card(r) {
   chips.append(el('span', 'chip ' + r.priority, 'Ưu tiên: ' + (PRI[r.priority] || r.priority)));
   for (const k of r.category || []) chips.append(el('span', 'chip', CAT[k] || k));
   ai.append(chips); c.append(ai);
+  if (needsAction(r)) {
+    const actions = el('div', 'actions');
+    if (r.handled_at) actions.append(el('span', 'chip ok', 'Đã xử lý'));
+    if (canModerate) {
+      const b = el('button', r.handled_at ? 'btn' : 'btn primary', r.handled_at ? 'Bỏ đánh dấu' : 'Đã xử lý'); b.type = 'button';
+      b.addEventListener('click', () => { b.disabled = true; setHandled(r, !r.handled_at); });
+      actions.append(b);
+    }
+    if (actions.children.length) c.append(actions);
+  }
   return c;
 }
 
@@ -124,14 +144,20 @@ function render() {
   renderCharts(rows);
 
   const list = $('list'); list.replaceChildren();
-  const shown = view === 'alerts' ? alerts : rows;
+  const all = view === 'alerts' ? alerts : rows;
+  const key = [view, platform, bizSel.value, reply, $('days').value].join('|');
+  if (key !== pageKey) { pageKey = key; page = 1; } // a new filter starts on page 1; the 60 s refresh keeps the page
+  const pages = Math.max(1, Math.ceil(all.length / PAGE_SIZE));
+  page = Math.min(page, pages);
+  pager($('pager'), page, pages, (to) => { page = to; render(); window.scrollTo(0, $('list').offsetTop - 80); });
+  const shown = all.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
   if (!shown.length) return list.append(el('div', 'empty-state', view === 'alerts' ? 'Không có đánh giá nào cần xử lý.' : 'Chưa có đánh giá.'));
   if (platform) return shown.forEach((r) => list.append(card(r)));
   for (const p of Object.keys(PLATFORMS)) { // all platforms: one clearly labelled section each
     const part = shown.filter((r) => platOf(r) === p);
     if (!part.length) continue;
     const h = el('div', 'section');
-    const t = el('h2'); t.append(platformBadge(p), el('span', 'count', `${part.length} đánh giá`));
+    const t = el('h2'); t.append(platformBadge(p), el('span', 'count', `${all.filter((r) => platOf(r) === p).length} đánh giá`));
     h.append(t); list.append(h);
     part.forEach((r) => list.append(card(r)));
   }
@@ -149,6 +175,6 @@ $('days').addEventListener('change', () => { keep('days', $('days').value); load
 $('biz').addEventListener('change', render);
 $('reply').addEventListener('change', () => { keep('reply', $('reply').value); render(); });
 $('refresh').addEventListener('click', load);
-whoAmI.then((me) => { $('role').textContent = me.role === 'moderator' ? '' : 'Chế độ chỉ xem'; });
+whoAmI.then((me) => { canModerate = me.role === 'moderator'; $('role').textContent = canModerate ? '' : 'Chế độ chỉ xem'; if (data.reviews.length) render(); });
 $('list').append(el('div', 'skeleton'));
 load(); setInterval(load, 60000);

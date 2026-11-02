@@ -23,7 +23,8 @@ return { json: {
   key_points: Array.isArray(a.key_points) ? a.key_points.map(String) : [],
   suggested_action: String(a.suggested_action || ''),
   language: String(a.language || 'unknown'),
-  reply_draft: r.has_owner_reply || r.reply_allowed === false ? '' : String(a.reply_draft || '').trim().slice(0, 3500), // human moderates it later
+  // 1-3 stars: no automatic reply, a person reads it from the alerts list; otherwise a human moderates the draft later
+  reply_draft: r.has_owner_reply || r.reply_allowed === false || r.rating <= 3 ? '' : String(a.reply_draft || '').trim().slice(0, 3500),
   ai_confidence: clamp(a.ai_confidence, 0, 1),
   analyzed_at: new Date().toISOString(),
 } };

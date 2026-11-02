@@ -14,9 +14,10 @@ exports.STATUSES = ['pending', 'approved', 'posted', 'rejected', 'none'];
 exports.PLATFORMS = Object.keys(platforms);
 const AUTO = exports.PLATFORMS.filter((id) => platforms[id].autoReply);
 
-exports.list = (status, platform) => cache.memo(`list:${status}:${platform || ''}`, 10000, () => {
+exports.PAGE_SIZE = 20; // rows per page: the page never loads (or draws) more than this
+exports.list = (status, platform, page = 1) => cache.memo(`list:${status}:${platform || ''}:${page}`, 10000, () => {
   const filter = (status === 'none' ? 'reply_status=is.null&has_owner_reply=eq.false' : `reply_status=eq.${status}`) + (platform ? `&platform=eq.${platform}` : '');
-  return db.get(`reviews?select=${COLUMNS}&${filter}&${status === 'approved' ? QUEUE_ORDER : ORDER}&limit=200`);
+  return db.get(`reviews?select=${COLUMNS}&${filter}&${status === 'approved' ? QUEUE_ORDER : ORDER}&limit=${exports.PAGE_SIZE}&offset=${(page - 1) * exports.PAGE_SIZE}`);
 });
 
 // -> { all, <platform>... }, each { pending, approved, posted, rejected, none }. Ten small exact counts in parallel
@@ -71,6 +72,7 @@ exports.act = async (id, action, text, { strict = false } = {}) => {
   if (action === 'approve') {
     const warnings = rules.lint(text, row.businesses && row.businesses.business_name);
     if (rules.hasError(warnings)) throw new HttpError(400, warnings.filter((w) => w.level === 'error').map((w) => w.message).join(' '));
+    if (strict && row.rating <= 3) throw new HttpError(422, 'Đánh giá 1-3 sao: cần người đọc và duyệt từng bài, không duyệt hàng loạt.');
     if (strict && warnings.length) throw new HttpError(422, warnings.map((w) => w.message).join(' '));
     patch = { ...patch, reply_final: text.trim(), reply_queued_at: now, reply_attempts: 0, reply_error: null }; // approving = joining the end of the posting queue
   } else if (action === 'reopen') {

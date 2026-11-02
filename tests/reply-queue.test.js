@@ -119,3 +119,8 @@ const make = (over = {}) => {
   dash.close();
   console.log('reply queue ok');
 })().catch((e) => { console.error(e); process.exit(1); });
+
+// 1-3 stars: a bulk (strict) approval is refused before anything is written; a person approves it one by one
+const Reply = require('../dashboard/models/reply');
+Reply.find = async () => ({ id: 'low', rating: 3, reply_status: 'pending', businesses: null });
+Reply.act('low', 'approve', good, { strict: true }).then(() => assert.fail('must refuse'), (e) => assert.strictEqual(e.status, 422));

@@ -26,11 +26,11 @@ const guarded = (fn) => async (...args) => {
 };
 
 // Queue position and expected posting time for the approved tab (live mode only: dry-run and off never post by themselves).
-const withQueueInfo = async (items) => {
+const withQueueInfo = async (items, offset = 0) => {
   if (publish.mode() !== 'live') return items.map(shape);
   const [last, postedToday] = await Promise.all([Reply.lastAttemptAt(), Reply.postedSince(publish.startOfToday())]);
   const left = Math.max(0, publish.DAILY_LIMIT - postedToday);
-  let position = 0;
+  let position = offset; // the queue order continues across pages
   return items.map((r) => {
     if (!publish.AUTO_PLATFORMS.includes(r.platform)) return { ...shape(r), manual: true }; // not auto-posted: the moderator pastes it on the platform
     if (r.reply_attempts >= queue.MAX_ATTEMPTS) return { ...shape(r), stalled: true };
@@ -39,14 +39,16 @@ const withQueueInfo = async (items) => {
   });
 };
 
-// GET /api/replies?status=pending[&platform=google|tripadvisor] -> { items, counts (for that platform), platforms (counts per platform) }
+// GET /api/replies?status=pending[&platform=google|tripadvisor][&page=2] (one page of 20) -> { items, counts (for that platform), platforms (counts per platform) }
 exports.index = guarded(async (req, res, url) => {
   const status = url.searchParams.get('status') || 'pending';
   if (!Reply.STATUSES.includes(status)) throw new HttpError(400, 'status không hợp lệ.');
   const platform = url.searchParams.get('platform') || '';
   if (platform && !Reply.PLATFORMS.includes(platform)) throw new HttpError(400, 'platform không hợp lệ.');
-  const [items, platforms] = await Promise.all([Reply.list(status, platform), Reply.counts()]);
-  view.json(res, 200, { items: status === 'approved' ? await withQueueInfo(items) : items.map(shape), counts: platforms[platform || 'all'], platforms });
+  const page = Math.min(Math.max(parseInt(url.searchParams.get('page'), 10) || 1, 1), 1000);
+  const [items, platforms] = await Promise.all([Reply.list(status, platform, page), Reply.counts()]);
+  const counts = platforms[platform || 'all'];
+  view.json(res, 200, { items: status === 'approved' ? await withQueueInfo(items, (page - 1) * Reply.PAGE_SIZE) : items.map(shape), counts, platforms, page, pageSize: Reply.PAGE_SIZE, pages: Math.max(1, Math.ceil(counts[status] / Reply.PAGE_SIZE)) });
 });
 
 // POST /api/replies/lint {text} -> warnings (stateless, used while the moderator edits)

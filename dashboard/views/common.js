@@ -26,6 +26,14 @@ function segmented(container, items, current, onPick) {
   }
 }
 
+// Previous / next page control. Renders nothing for a single page.
+function pager(container, page, pages, onPage) {
+  container.replaceChildren();
+  if (pages <= 1) return;
+  const go = (label, to, disabled) => { const b = el('button', 'btn', label); b.type = 'button'; b.disabled = disabled; b.addEventListener('click', () => onPage(to)); return b; };
+  container.append(go('Trước', page - 1, page <= 1), el('span', 'pager-info', `Trang ${page} / ${pages}`), go('Sau', page + 1, page >= pages));
+}
+
 // Five stars as one labelled element (screen readers get "4 trên 5 sao" instead of glyphs).
 function starsEl(n) {
   const s = el('span', 'stars');
