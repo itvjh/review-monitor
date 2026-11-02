@@ -34,9 +34,11 @@ const freePort = () => new Promise((ok, fail) => {
   server.listen(0, '127.0.0.1', () => { const { port } = server.address(); server.close(() => ok(port)); });
 });
 
-async function execute(workflowId) {
+// `signal` (optional) stops the run: the n8n process and its task runner are killed.
+async function execute(workflowId, signal) {
   // IDs come only from the platform registry; also validate before passing through Windows' command shim.
   if (!/^[a-zA-Z0-9_-]+$/.test(workflowId)) throw new Error('ID workflow không hợp lệ.');
+  if (signal?.aborted) throw new Error('Đã dừng.');
   const port = await freePort();
   return new Promise((resolve, reject) => {
     const child = spawn('n8n', ['execute', '--id=' + workflowId], {
@@ -46,14 +48,16 @@ async function execute(workflowId) {
     let output = '', timedOut = false;
     child.stdout.setEncoding('utf8');
     child.stdout.on('data', (text) => { if (output.length < OUTPUT_LIMIT) output += text.slice(0, OUTPUT_LIMIT - output.length); });
-    const timer = setTimeout(() => {
-      timedOut = true;
+    const kill = () => {
       if (process.platform === 'win32' && child.pid) execFile('taskkill', ['/pid', String(child.pid), '/T', '/F'], { windowsHide: true }, () => {});
       else child.kill('SIGTERM');
-    }, 60 * 60 * 1000);
+    };
+    const timer = setTimeout(() => { timedOut = true; kill(); }, 60 * 60 * 1000);
+    signal?.addEventListener('abort', kill, { once: true });
     child.once('error', () => { clearTimeout(timer); reject(new Error('Không khởi động được n8n. Kiểm tra n8n đã được cài và có trong PATH.')); });
     child.once('close', (code) => {
       clearTimeout(timer);
+      if (signal?.aborted) return reject(new Error('Đã dừng.'));
       if (timedOut) return reject(new Error('Workflow vượt quá 60 phút và đã được dừng.'));
       try { resolve(resultOf(output, code)); } catch (e) { reject(e); }
     });

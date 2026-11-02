@@ -16,6 +16,7 @@ const routes = {
   'GET /crawl.js': page.file('crawl.js'),
   'GET /api/crawl': crawl.index,
   'POST /api/crawl': crawl.start,
+  'POST /api/crawl/stop': crawl.stop,
   'GET /platforms.js': data.platformsScript,
   'GET /common.js': page.file('common.js'),
   'GET /app.js': page.file('app.js'),

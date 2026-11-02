@@ -42,3 +42,22 @@ test('execution results expose only numeric summary and fixed codes, never raw w
   assert.throws(() => resultOf('Execution was NOT successful.\n', 0));
   assert.throws(() => resultOf('Execution was successful:\n{}', 1));
 });
+
+test('stop drops a waiting job and kills a running one without touching the others', async () => {
+  const calls = [];
+  const queue = createQueue((id, signal) => new Promise((resolve, reject) => { calls.push(id); signal.addEventListener('abort', () => reject(new Error('Đã dừng.'))); }));
+  queue.enqueue(['google', 'agoda']);
+  const [agoda, google] = queue.snapshot().jobs; // newest first
+  queue.stop(agoda.id);
+  assert.equal(queue.snapshot().jobs[0].status, 'stopped');
+  queue.stop(google.id);
+  await flush();
+  const jobs = queue.snapshot().jobs;
+  assert.deepEqual(jobs.map((j) => j.status), ['stopped', 'stopped']);
+  assert.equal(jobs[1].error, undefined);
+  assert.deepEqual(calls, ['gbpReviewMonitor1']); // the waiting one never ran
+  assert.throws(() => queue.stop(google.id), { status: 409 });
+  assert.throws(() => queue.stop('nope'), { status: 404 });
+  queue.enqueue(['google']); // a stopped platform can run again
+  assert.equal(calls.length, 2);
+});

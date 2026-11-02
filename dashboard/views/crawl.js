@@ -1,6 +1,6 @@
 const selected = new Set();
 let crawlState = { platforms: [], jobs: [] }, moderator = false, submitting = false, loading = false;
-const labels = { queued: 'Chờ chạy', running: 'Đang chạy', completed: 'Hoàn tất', partial: 'Hoàn tất một phần', failed: 'Lỗi' };
+const labels = { queued: 'Chờ chạy', running: 'Đang chạy', completed: 'Hoàn tất', partial: 'Hoàn tất một phần', failed: 'Lỗi', stopped: 'Đã dừng' };
 const isActive = (j) => j.status === 'running' || j.status === 'queued';
 const busyPlatform = (p) => crawlState.jobs.some((j) => j.platform === p && isActive(j));
 const available = () => crawlState.platforms.filter((p) => !busyPlatform(p.id));
@@ -20,9 +20,9 @@ function render() {
     choice.disabled = !moderator || submitting || Boolean(job); choice.setAttribute('aria-label', 'Chọn ' + p.name);
     choice.addEventListener('change', () => { choice.checked ? selected.add(p.id) : selected.delete(p.id); render(); });
     head.append(choice);
-    const button = el('button', 'btn', job ? labels[job.status] : 'Crawl ngay');
-    button.type = 'button'; button.disabled = !moderator || submitting || Boolean(job);
-    button.addEventListener('click', () => start([p.id]));
+    const button = el('button', job ? 'btn danger' : 'btn', job ? 'Dừng chạy' : 'Crawl ngay');
+    button.type = 'button'; button.disabled = !moderator || submitting;
+    button.addEventListener('click', () => (job ? stopJob(job.id) : start([p.id])));
     card.append(head, el('p', 'run-line', job ? 'Đã có trong hàng đợi.' : 'Chạy workflow lấy đánh giá mới.'), button);
     $('crawl-platforms').append(card);
   }
@@ -43,6 +43,11 @@ function render() {
       const ahead = crawlState.jobs.filter((j) => isActive(j)).reverse().findIndex((j) => j.id === job.id);
       card.append(el('p', 'run-line', 'Chờ ' + ahead + ' lượt phía trước.'));
     }
+    if (isActive(job)) {
+      const stopButton = el('button', 'btn danger', 'Dừng chạy'); stopButton.type = 'button'; stopButton.disabled = !moderator || submitting;
+      stopButton.addEventListener('click', () => stopJob(job.id));
+      card.append(stopButton);
+    }
     if (job.status === 'running') card.append(el('p', 'run-line', 'n8n đang xử lý. Quá trình có thể mất vài phút.'));
     if (job.summary) card.append(el('p', 'run-line', `${job.summary.businesses_checked ?? '—'} cơ sở · ${job.summary.reviews_scanned ?? '—'} đánh giá đã quét · ${job.summary.new_reviews ?? '—'} đánh giá mới · ${job.summary.errors ?? 0} lỗi`));
     if (job.error) card.append(el('p', 'crawl-error', job.error));
@@ -60,6 +65,16 @@ async function load() {
     crawlState = data; render();
   } catch (e) { notice(e.message || 'Không tải được trạng thái.'); }
   finally { loading = false; }
+}
+async function stopJob(id) {
+  if (submitting) return;
+  submitting = true; render(); notice('');
+  try {
+    const response = await fetch('/api/crawl/stop', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ id }) });
+    const data = await response.json(); if (!response.ok) throw new Error(data.error);
+    crawlState = data; notice('Đã gửi yêu cầu dừng.', 'ok');
+  } catch (e) { notice(e.message || 'Không dừng được. Làm mới để kiểm tra.'); }
+  finally { submitting = false; render(); }
 }
 async function start(ids) {
   if (submitting || !ids.length) return;
