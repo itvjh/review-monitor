@@ -12,6 +12,7 @@ exports.reviewsUrl = (propertyId) => `${PORTAL}/supply/reviews/post-stay-reviews
 const CARD = '[data-testid="review-card"]';
 const FILTER_CHIP = /^(Xoá|Xóa|Clear|Remove) /; // the page opens on "Cần phản hồi" (needs a reply); that chip has to be cleared to see every review
 const BLOCKED = /Access (is )?(temporarily )?(denied|restricted)|unusual (traffic|activity)|verify you are human|captcha/i;
+exports.CARD = CARD;
 const MAX_BATCHES = 40; // the list loads 30 reviews per scroll: a safety stop per property
 
 const count = (locator) => locator.count().catch(() => 0); // a count taken while the page navigates throws: "not there yet"
@@ -69,12 +70,15 @@ exports.openReviews = async (page, propertyId) => {
   throw new CodedError('SELECTOR_CHANGED', 'không thấy danh sách nhận xét trên Expedia');
 };
 
+exports.MAX_BATCHES = MAX_BATCHES;
 const readCards = (page) => page.$$eval(CARD, (els) => els.map((e) => ({
   lines: e.innerText.split('\n'),
   canReply: Boolean(e.querySelector('[data-testid="supply-reviews-button--REVIEWS_RESPOND_SHEET"]')),
 })));
 
 // Scrolls the list down; -> true when more reviews were added.
+exports.readCards = readCards;
+exports.loadMore = loadMore;
 async function loadMore(page) {
   const before = await count(page.locator(CARD));
   await page.evaluate(() => { const s = document.querySelector('[data-testid="scroll-container"]') || document.scrollingElement; s.scrollTo(0, s.scrollHeight); window.scrollTo(0, document.body.scrollHeight); });

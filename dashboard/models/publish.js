@@ -18,13 +18,14 @@ exports.AUTO_PLATFORMS = AUTO_PLATFORMS;
 
 // Each collector adapter identifies the review its own way. `base` = what every platform gets (business, reviewer, text, retry flag, dry run, deadline;
 // retry: markAttempt already counted this attempt, so more than one means an earlier attempt may have posted without telling us).
-const NEEDS_REVIEW_ID = ['google', 'agoda', 'traveloka']; // Tripadvisor uses title, stars and text
+const NEEDS_REVIEW_ID = ['google', 'agoda', 'traveloka', 'expedia']; // Tripadvisor uses title, stars and text
 const lines = (row) => String(row.review_text || '').split('\n');
 const PAYLOAD = {
   google: (row, base) => ({ review_id: row.external_review_id, ...base }),
   tripadvisor: (row, base) => ({ title: lines(row)[0], body: lines(row).slice(1).join(' '), rating: row.rating, ...base }),
   agoda: (row, base) => ({ bid: row.external_review_id, language: row.language, ...base }),
   traveloka: (row, base) => ({ review_id: row.external_review_id, ...base }),
+  expedia: (row, base) => ({ review_id: row.external_review_id, ...base }),
 };
 
 const startOfToday = () => { const d = new Date(); d.setHours(0, 0, 0, 0); return d.toISOString(); };

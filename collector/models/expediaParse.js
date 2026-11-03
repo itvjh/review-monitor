@@ -39,3 +39,15 @@ exports.parseCard = (lines) => {
     reply: head < L.length ? L.slice(head + 1).join('\n') : '',
   };
 };
+
+const fold = (x) => String(x || '').normalize('NFC').toLowerCase(); // accents kept: "Thanh" (a name) is not "thành" (a common word)
+const WORD_EDGE = '(^|[^\\p{L}\\p{N}])';
+const escapeRe = (w) => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+// Does `text` use any word (3+ letters) of the guest's name? Expedia forbids names in replies, and the sheet makes the sender declare there are none.
+exports.mentionsName = (text, name) => {
+  const t = fold(text);
+  return fold(name).split(/[^\p{L}\p{N}]+/u).filter((w) => w.length >= 3)
+    .some((w) => new RegExp(`${WORD_EDGE}${escapeRe(w)}${WORD_EDGE.replace('(^|', '($|')}`, 'u').test(t));
+};
+

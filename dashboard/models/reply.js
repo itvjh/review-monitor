@@ -72,6 +72,7 @@ exports.act = async (id, action, text, { strict = false } = {}) => {
   if (action === 'approve') {
     const warnings = rules.lint(text, row.businesses && row.businesses.business_name);
     if (rules.hasError(warnings)) throw new HttpError(400, warnings.filter((w) => w.level === 'error').map((w) => w.message).join(' '));
+    if (platforms[row.platform]?.noGuestName && rules.mentionsName(text, row.reviewer_name)) throw new HttpError(400, `${platforms[row.platform].name} không cho phép tên khách trong phản hồi. Hãy bỏ tên "${row.reviewer_name}" khỏi nội dung.`);
     if (strict && row.rating <= 3) throw new HttpError(422, 'Đánh giá 1-3 sao: cần người đọc và duyệt từng bài, không duyệt hàng loạt.');
     if (strict && warnings.length) throw new HttpError(422, warnings.map((w) => w.message).join(' '));
     patch = { ...patch, reply_final: text.trim(), reply_queued_at: now, reply_attempts: 0, reply_error: null }; // approving = joining the end of the posting queue

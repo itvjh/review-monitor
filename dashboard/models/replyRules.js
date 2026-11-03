@@ -62,5 +62,15 @@ exports.classifyBulk = (items) => {
   return { ok, skipped };
 };
 
+// Platforms such as Expedia forbid the guest's name in a reply: does `text` use a word (3+ letters) of `name`?
+// (Same check as collector/models/expediaParse.js.)
+const fold = (x) => String(x || '').normalize('NFC').toLowerCase(); // accents kept: "Thanh" (a name) is not "thành" (a common word)
+const escapeRe = (w) => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+exports.mentionsName = (text, name) => {
+  const t = fold(text);
+  return fold(name).split(/[^\p{L}\p{N}]+/u).filter((w) => w.length >= 3)
+    .some((w) => new RegExp(`(^|[^\\p{L}\\p{N}])${escapeRe(w)}($|[^\\p{L}\\p{N}])`, 'u').test(t));
+};
+
 exports.hasError = (warnings) => warnings.some((w) => w.level === 'error');
 exports.MAX_LEN = MAX_LEN;

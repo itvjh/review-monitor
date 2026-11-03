@@ -24,7 +24,7 @@ n8n dùng **Business Loop** để chạy một ID cơ sở mỗi lượt: lưu c
 
 - Đăng nhập một lần trong Chrome riêng của tool: `npm run login -- expedia`. Collector đọc danh sách nơi lưu trú ở `https://apps.expediapartnercentral.com/manageproperty/ManageProperty` và nhận xét ở `/supply/reviews/post-stay-reviews?propertyId=<ID>` (bỏ bộ lọc mặc định "Cần phản hồi" để thấy mọi nhận xét, cuộn để tải thêm 30 bài mỗi lần). ID review là mã đặt phòng (`Mã đặt phòng`). Điểm gốc 1-10 lưu ở `raw_data.source_score`, quy đổi sang 1-5 sao như Agoda.
 - Workflow **Expedia Review Monitor** chạy mỗi ngày lúc **11:30**, tối đa **5 đánh giá mới mỗi cơ sở**; có thể chạy ngay ở `/crawl`.
-- **Chưa tự đăng được**: `autoReply: false`, bài đã duyệt chỉ để sao chép và dán tay (nút "Mở trang quản lý Expedia"). Expedia cấm tên khách trong phản hồi nên AI không được thấy tên khách (`noGuestName` trong `config/platforms.js`) và mở bằng "Dear valued guest," / "Kính gửi quý khách,".
+- **Tự đăng**: `autoReply: true`. Collector tìm thẻ theo mã đặt phòng, kiểm tra đúng tên khách và chưa có phản hồi, mở khung "Phản hồi", điền nội dung, tích ô xác nhận "không cung cấp thông tin cá nhân của khách" rồi bấm **Gửi** một lần; sau đó tải lại trang để xác nhận phản hồi đã hiện (không xác nhận được thì báo `UNKNOWN_ERROR` và dừng, không đăng lại). Ô xác nhận chỉ được tích sau khi kiểm tra nội dung không chứa tên khách, liên kết, email hay số điện thoại; duyệt ở dashboard cũng bị chặn nếu có tên khách. Expedia cấm tên khách trong phản hồi nên AI không được thấy tên khách (`noGuestName` trong `config/platforms.js`) và mở bằng "Dear valued guest," / "Kính gửi quý khách,". **Lần đầu hãy duyệt đúng một bài và theo dõi** trước khi duyệt hàng loạt.
 
 ### Traveloka TERA
 

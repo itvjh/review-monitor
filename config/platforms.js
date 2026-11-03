@@ -41,7 +41,7 @@ module.exports = {
   },
   expedia: {
     name: 'Expedia', logo: '/logos/expedia.svg', color: '#1a3d8f', tint: '#e5ebf8',
-    login: 'npm run login -- expedia', ownerUrl: 'https://apps.expediapartnercentral.com/manageproperty/ManageProperty', autoReply: false, // read-only for now: approved replies are copied and posted by hand
+    login: 'npm run login -- expedia', ownerUrl: 'https://apps.expediapartnercentral.com/manageproperty/ManageProperty', autoReply: true,
     noGuestName: true,
     replyNote: 'Expedia does not allow the name of the guest or any personal details in a reply. Never greet the guest by name and never use the reviewer name: start with "Dear valued guest," (Vietnamese "Kính gửi quý khách,") and ignore the greeting rule that asks for the guest name.',
     workflow: {

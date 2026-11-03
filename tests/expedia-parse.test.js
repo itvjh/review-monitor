@@ -26,3 +26,14 @@ const tricky = [...bare, 'We left vào Jan 5, 2026'];
 assert.strictEqual(parseCard(tricky).text, 'We left vào Jan 5, 2026');
 assert.strictEqual(parseCard(['not a card']), null);
 console.log('expedia parse ok');
+
+// Expedia forbids the guest's name in a reply: whole words of 3+ letters, accents kept, no false hit inside another word
+const { mentionsName } = require('../collector/models/expediaParse');
+assert.strictEqual(mentionsName('Kính gửi quý khách Le Hai Yen,', 'Le Hai Yen'), true);
+assert.strictEqual(mentionsName('chân thành cảm ơn', 'Thanh Mai Lê'), false); // "Thanh" the name is not "thành" the word
+assert.strictEqual(mentionsName('Dear Thanh,', 'Thanh Mai Lê'), true);
+assert.strictEqual(mentionsName('Kính gửi quý khách, cảm ơn.', 'Le Hai Yen'), false);
+assert.strictEqual(mentionsName('enjoy Yenzo', 'Le Hai Yen'), false);
+assert.strictEqual(require('../dashboard/models/replyRules').mentionsName('Dear Ann,', 'Ann'), true);
+assert.strictEqual(require('../dashboard/models/replyRules').mentionsName('Dear valued guest,', 'Ann'), false);
+console.log('expedia name guard ok');

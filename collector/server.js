@@ -34,6 +34,7 @@ const routes = {
   'POST /traveloka/reply': traveloka.reply,
   'GET /expedia/businesses': expedia.businesses,
   'POST /expedia/reviews': expedia.reviews,
+  'POST /expedia/reply': expedia.reply,
 };
 
 // Reads the body with a size and time limit; a client that stalls or floods is dropped.
