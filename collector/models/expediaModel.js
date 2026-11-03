@@ -108,8 +108,8 @@ async function readProperty(page, biz, { limit, stopAfterKnown, known }) {
         platform: 'expedia', business_identifier: biz.business_identifier, review_id: c.bookingId, review_hash,
         source_locator: { property_id: biz.business_identifier, review_id: c.bookingId, page: batch, kind: 'native' },
         reviewer_name: c.name, rating: starsFromScore(c.score), raw_score: c.score, review_text: c.text,
-        review_date: parseDate(c.dateText), review_date_text: c.dateText, owner_reply: c.reply, has_owner_reply: Boolean(c.reply),
-        reply_allowed: raw.canReply || Boolean(c.reply), review_url: exports.reviewsUrl(biz.business_identifier),
+        review_date: parseDate(c.dateText), review_date_text: c.dateText, owner_reply: c.reply, has_owner_reply: Boolean(c.reply) || c.moderation === 'pending',
+        reply_allowed: raw.canReply || Boolean(c.reply) || c.moderation === 'pending', review_url: exports.reviewsUrl(biz.business_identifier),
       });
       if (out.length >= limit) return out;
     }

@@ -11,7 +11,7 @@ assert.strictEqual(starsFromScore(8), 4);
 const answered = ['b', 'b.', 'bich hang vu', 'Mã đặt phòng 2586693500', 'Thứ 3, 27 thg 10 – Thứ 4, 28 thg 10, 2026', 'Expedia', '10/10', 'Gửi vào Oct 28, 2026',
   'Phòng sạch sẽ, khách sạn đối diện là bãi biển.', 'Dịch', 'Ảnh thu nhỏ của hình đầu tiên', 'S', 'S.', 'Sontra Sea Hotel vào Oct 29, 2026', 'Kính gửi quý khách, cảm ơn.', 'Trân trọng.'];
 const a = parseCard(answered);
-assert.deepStrictEqual(a, { name: 'bich hang vu', bookingId: '2586693500', source: 'Expedia', score: 10, dateText: 'Oct 28, 2026', text: 'Phòng sạch sẽ, khách sạn đối diện là bãi biển.', reply: 'Kính gửi quý khách, cảm ơn.\nTrân trọng.' });
+assert.deepStrictEqual(a, { name: 'bich hang vu', bookingId: '2586693500', source: 'Expedia', score: 10, dateText: 'Oct 28, 2026', text: 'Phòng sạch sẽ, khách sạn đối diện là bãi biển.', reply: 'Kính gửi quý khách, cảm ơn.\nTrân trọng.', moderation: '' });
 
 const open = ['T', 'T.', 'Thanh Mai Lê', 'Mã đặt phòng 2404459402', 'Thứ 2, 9 thg 3 – Thứ 3, 10 thg 3, 2026', 'Expedia', '8/10', 'Gửi vào Mar 13, 2026', 'Phòng sạch sẽ.', 'Hiển thị thêm', 'Phản hồi'];
 const o = parseCard(open);
@@ -37,3 +37,16 @@ assert.strictEqual(mentionsName('enjoy Yenzo', 'Le Hai Yen'), false);
 assert.strictEqual(require('../dashboard/models/replyRules').mentionsName('Dear Ann,', 'Ann'), true);
 assert.strictEqual(require('../dashboard/models/replyRules').mentionsName('Dear valued guest,', 'Ann'), false);
 console.log('expedia name guard ok');
+
+// Moderation blocks are not review text
+const pending = ['P', 'P.', 'Pham', 'Mã đặt phòng 2449023133', 'Thứ 3', 'Expedia', '10/10', 'Gửi vào May 6, 2026', 'Không gian đơn giản.', 'Dịch', 'Phản hồi đang chờ duyệt', 'Gửi vào Nov 3, 2026', 'Sau khi nội dung được duyệt, phản hồi của quý vị sẽ hiển thị ở đây.'];
+const pc = parseCard(pending);
+assert.strictEqual(pc.text, 'Không gian đơn giản.');
+assert.strictEqual(pc.moderation, 'pending');
+assert.strictEqual(pc.reply, '');
+const refused = ['P', 'P.', 'Pham', 'Mã đặt phòng 2449023133', 'Thứ 3', 'Expedia', '10/10', 'Gửi vào May 6, 2026', 'Không gian đơn giản.', 'Đã từ chối phản hồi', 'Từ chối vào May 8, 2026', 'Vui lòng gửi phản hồi mới tuân thủ hướng dẫn viết hồi âm.', 'Phản hồi'];
+const rc = parseCard(refused);
+assert.strictEqual(rc.text, 'Không gian đơn giản.');
+assert.strictEqual(rc.moderation, 'rejected');
+assert.strictEqual(parseCard(open).moderation, '');
+console.log('expedia moderation ok');

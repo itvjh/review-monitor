@@ -32,6 +32,7 @@ exports.post = async (page, { property, reviewId, reviewer, text, dryRun }) => {
   if (!card) throw new CodedError('REVIEW_NOT_FOUND', 'Không tìm thấy nhận xét này trên Expedia.');
   const found = await read(card);
   if (!found || found.bookingId !== String(reviewId) || squash(found.name).toLowerCase() !== squash(reviewer).toLowerCase()) throw new CodedError('REPLY_MISMATCH', `Thẻ Expedia không khớp (${found ? found.bookingId + ' / ' + found.name : 'không đọc được'}). Không đăng.`);
+  if (found.moderation === 'pending') return { posted: true, dry_run: false, verified: true, already: true, pending_approval: true }; // sent, and Expedia is still checking it
   if (found.reply) {
     if (sameReply(found.reply, text)) return { posted: true, dry_run: false, verified: true, already: true }; // idempotent: a retry recognises its own reply
     throw new CodedError('ALREADY_REPLIED', `Nhận xét này đã có phản hồi khác trên Expedia. Không đăng. Phản hồi hiện có: "${squash(found.reply).slice(0, 80)}"`);
@@ -69,6 +70,7 @@ exports.post = async (page, { property, reviewId, reviewer, text, dryRun }) => {
     await page.waitForTimeout(4000 + attempt * 3000);
     const again = await locate(page, property, reviewId).catch(() => null);
     const now = again && await read(again).catch(() => null);
+    if (now && now.moderation === 'pending') return { posted: true, dry_run: false, verified: true, pending_approval: true }; // Expedia shows a reply only after it approves it
     if (now && now.reply && sameReply(now.reply, text)) return { posted: true, dry_run: false, verified: true };
   }
   const shot = await screenshot(page, 'expedia-unverified');
