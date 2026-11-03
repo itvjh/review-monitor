@@ -26,3 +26,16 @@ assert.strictEqual(languageLabel('zh-TW'), '繁體中文 (台灣)');
 assert.strictEqual(languageLabel('unknown'), ''); // no match: the dropdown is left on its default
 assert.strictEqual(languageLabel(''), '');
 console.log('agoda-parse ok');
+
+// An empty page is never read as a block (it used to start a 6 hour pause): only Agoda's own "access restricted" text does.
+const cooldown = require('../collector/models/cooldown');
+const Agoda = require('../collector/models/agodaModel');
+(async () => {
+  const trips = [];
+  cooldown.trip = (site) => trips.push(site);
+  const fake = (text) => ({ frames: () => [{ evaluate: async () => text }], waitForTimeout: async () => {}, locator: () => ({ count: async () => 0 }), url: () => 'https://portal.agoda.com/x' });
+  await assert.rejects(Agoda.checkSession(fake('')), { code: 'NETWORK_ERROR' });
+  assert.deepStrictEqual(trips, []);
+  await assert.rejects(Agoda.checkSession(fake('Access is temporarily restricted')), { code: 'AUTH_REQUIRED' });
+  assert.deepStrictEqual(trips, ['agoda']);
+})();

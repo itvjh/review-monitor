@@ -14,7 +14,7 @@ const call = (s, method, path, body) => fetch(`http://127.0.0.1:${s.address().po
   const dash = await serve(handle);
   assert.strictEqual((await call(dash, 'GET', '/')).code, 200);
   assert.ok((await call(dash, 'GET', '/style.css')).text.includes('--primary'));
-  assert.ok((await call(dash, 'GET', '/vendor/chart.js')).text.includes('Chart'));
+  assert.strictEqual((await call(dash, 'GET', '/vendor/chart.js')).code, 404);
   assert.strictEqual((await call(dash, 'GET', '/app.js')).code, 200);
   assert.strictEqual((await call(dash, 'GET', '/nope')).code, 404);
   assert.strictEqual((await call(dash, 'GET', '/../.env')).code, 404); // only whitelisted files are served

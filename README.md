@@ -20,6 +20,12 @@ n8n dùng **Business Loop** để chạy một ID cơ sở mỗi lượt: lưu c
 
 `raw_data.source_locator` lưu ID cơ sở, ID review, trang và ID gốc nếu đọc được. Khi trả lời, worker mở đúng cơ sở, tìm ID trên trang gợi ý và xác nhận lại tên/nội dung trước khi gửi. Trang gợi ý chỉ giúp tìm nhanh: nếu review dịch sang trang khác, hệ thống tìm lại trong phạm vi cho phép. Dữ liệu cũ chưa có locator vẫn dùng ID cơ sở và ID review đã lưu. Google đọc và trả lời trên `https://business.google.com/reviews` (mọi cơ sở trong một danh sách, mới nhất trước; chỉ đọc trang đầu tiên, 50 review mới nhất, và bỏ qua review đã lưu), tìm thẻ theo `data-review-id` rồi đối chiếu ID cơ sở và tên khách; Agoda dùng BID. Traveloka chọn thẻ cơ sở theo ID TERA rồi xác nhận ID ở đầu trang, đọc ID gốc trong ô trả lời. Tripadvisor chưa cung cấp ID gốc ổn định trên dòng quản lý, nên dùng ID nội bộ theo nội dung và kiểm tra khớp duy nhất; không tự suy đoán URL review.
 
+### Expedia Partner Central
+
+- Đăng nhập một lần trong Chrome riêng của tool: `npm run login -- expedia`. Collector đọc danh sách nơi lưu trú ở `https://apps.expediapartnercentral.com/manageproperty/ManageProperty` và nhận xét ở `/supply/reviews/post-stay-reviews?propertyId=<ID>` (bỏ bộ lọc mặc định "Cần phản hồi" để thấy mọi nhận xét, cuộn để tải thêm 30 bài mỗi lần). ID review là mã đặt phòng (`Mã đặt phòng`). Điểm gốc 1-10 lưu ở `raw_data.source_score`, quy đổi sang 1-5 sao như Agoda.
+- Workflow **Expedia Review Monitor** chạy mỗi ngày lúc **11:30**, tối đa **5 đánh giá mới mỗi cơ sở**; có thể chạy ngay ở `/crawl`.
+- **Chưa tự đăng được**: `autoReply: false`, bài đã duyệt chỉ để sao chép và dán tay (nút "Mở trang quản lý Expedia"). Expedia cấm tên khách trong phản hồi nên AI không được thấy tên khách (`noGuestName` trong `config/platforms.js`) và mở bằng "Dear valued guest," / "Kính gửi quý khách,".
+
 ### Traveloka TERA
 
 - Đăng nhập trong Chrome cá nhân: `npm run login -- traveloka`. Dùng phiên Chrome đã bật Remote Debugging giống các nền tảng khác.
@@ -39,6 +45,8 @@ Dashboard gọi đúng workflow n8n đã có bằng `n8n execute --id=...`, cùn
 Trang cập nhật trạng thái mỗi 3 giây, hiển thị số cơ sở, đánh giá quét, đánh giá mới và lỗi khi n8n trả bản tổng kết. Workflow có thể hoàn tất một phần hoặc lỗi đăng nhập dù tiến trình n8n đã kết thúc. Lịch sử tối đa 50 lượt chỉ tồn tại trong phiên dashboard hiện tại; đừng khởi động lại dashboard khi đang crawl. Đóng tab trình duyệt không dừng lượt chạy. Một lượt vượt 60 phút sẽ bị dừng và báo lỗi. Không gửi raw output của n8n ra giao diện vì node có thể chứa credential.
 
 ### Crawl trong Chrome cá nhân đang mở
+
+**Chrome riêng cho tool (nên dùng nếu bạn có nhiều profile Chrome).** Đặt `BROWSER_MODE=personal` và `CHROME_USER_DATA_DIR=D:/automation/chrome-bot` trong `.env`. `start.bat` mở một Chrome tách biệt với thư mục dữ liệu đó (cổng debug 9333, đổi bằng `CHROME_DEBUG_PORT`; Chrome ở `CHROME_PATH`), và collector chỉ kết nối vào Chrome này, nên không bao giờ mở tab trong các profile Chrome của bạn. Chrome riêng này giữ nguyên khi chạy `stop.bat` hoặc Ctrl+C để không mất phiên đăng nhập. Đăng nhập một lần cho từng nền tảng: `npm run login -- google` (rồi `agoda`, `tripadvisor`, `traveloka`) mở trang đăng nhập ngay trong Chrome riêng. Bỏ dòng `CHROME_USER_DATA_DIR` để quay về cách gắn vào Chrome cá nhân bên dưới.
 
 Đặt `BROWSER_MODE=personal` trong `.env` để collector kết nối trực tiếp với phiên Chrome cá nhân đang mở, dùng cùng phiên đăng nhập cho cả crawl theo lịch và phản hồi đã duyệt. Không sao chép cookie hay mở profile `collector/profile`. Chế độ cũ dùng `BROWSER_MODE=persistent`.
 
@@ -110,7 +118,7 @@ Mỗi tầng chỉ làm đúng việc của nó. Phụ thuộc chỉ đi một c
 - **`server.js` / `routes.js`**: chỉ khởi động và khai báo route `"METHOD /path" -> controller`. Thêm endpoint mới = thêm một dòng vào bảng route, không thêm `if` rải rác.
 - **Cấu hình** chỉ ở `config.js` (collector) và `config/env.js`. Không viết cứng cổng, đường dẫn hay key trong model.
 - **Selector của Google** chỉ ở `collector/models/selectors.js`. Khi Google đổi giao diện, chỉ sửa file này.
-- **Thư viện giao diện** (cài bằng `npm install`, phục vụ từ máy chủ dashboard, không dùng CDN nên chạy được offline và cho người xem trong mạng nội bộ): **Chart.js** (biểu đồ). Giao diện không dùng icon. Chỉ được phục vụ qua route cố định `/vendor/...` trong `dashboard/routes.js`; thêm thư viện mới = thêm một route ở đó. Giao diện sáng, bảng màu và khoảng cách nằm ở các biến CSS đầu `dashboard/views/style.css`; nhãn và màu nền tảng (Google, Tripadvisor) khai báo ở `PLATFORMS` trong `common.js`. Hộp xác nhận dùng thẻ `<dialog>` gốc của trình duyệt.
+- **Giao diện** không dùng thư viện bên ngoài và không có biểu đồ hay icon. Giao diện sáng, bảng màu và khoảng cách nằm ở các biến CSS đầu `dashboard/views/style.css`; nhãn và màu nền tảng (Google, Tripadvisor) khai báo ở `PLATFORMS` trong `common.js`. Hộp xác nhận dùng thẻ `<dialog>` gốc của trình duyệt.
 - **Một file một việc**, tên theo vai trò: `xxxController.js`, `xxxModel.js`. Hàm model trả dữ liệu thuần, lỗi nghiệp vụ ném `CodedError` (không tự trả HTTP).
 
 Thêm một chức năng mới theo thứ tự: model -> controller -> view -> dòng route -> test.

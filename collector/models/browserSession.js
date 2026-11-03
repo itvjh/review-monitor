@@ -19,13 +19,13 @@ function createSessions(chromium, cfg, resolveEndpoint = endpoint) {
   async function personalBrowser() {
     if (!connected) {
       connected = (async () => {
-        const address = resolveEndpoint(cfg.CHROME_USER_DATA_DIR);
+        const address = cfg.CHROME_DEBUG_URL || resolveEndpoint(cfg.CHROME_USER_DATA_DIR);
         try {
           const browser = await chromium.connectOverCDP(address, { timeout: 60000 });
           browser.on('disconnected', () => { connected = undefined; });
           return browser;
         } catch {
-          throw new CodedError('AUTH_REQUIRED', 'Không kết nối được Chrome cá nhân. Giữ Chrome mở, bật chrome://inspect/#remote-debugging và bấm Cho phép khi Chrome hỏi.');
+          throw new CodedError('AUTH_REQUIRED', cfg.CHROME_DEBUG_URL ? 'Không kết nối được Chrome riêng của tool. Chạy start.bat để mở lại nó.' : 'Không kết nối được Chrome cá nhân. Giữ Chrome mở, bật chrome://inspect/#remote-debugging và bấm Cho phép khi Chrome hỏi.');
         }
       })();
     }

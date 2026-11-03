@@ -147,11 +147,7 @@ p.crawl-help { margin: 12px 0 28px; }
 .crawl-status.failed { background: var(--danger-50); color: var(--danger); }
 .crawl-error { color: var(--danger); overflow-wrap: anywhere; }
 
-/* ---------- charts, dialog ---------- */
-.charts { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 12px; margin: 28px 0 0; }
-.panel { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 14px 16px; }
-.panel h2 { font-size: 14px; color: var(--text-2); margin-bottom: 10px; }
-.chart-box { position: relative; height: 200px; }
+/* ---------- dialog ---------- */
 .dialog { border: 0; border-radius: var(--r); padding: 20px 22px; max-width: min(440px, calc(100vw - 32px)); box-shadow: 0 12px 32px rgba(22, 25, 31, .25); color: var(--text); }
 .dialog::backdrop { background: rgba(22, 25, 31, .45); }
 .dialog-text { margin: 0; }

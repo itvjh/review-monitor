@@ -3,6 +3,8 @@
 //   name / logo / color / tint   how the dashboard shows it (badge, tabs, charts); logo = a file in dashboard/views/logos/
 //   login / ownerUrl      what to run to sign in again, and the page where a person answers reviews by hand
 //   autoReply             true = the posting queue may post approved replies there by itself
+//   noGuestName           true = the AI never sees the reviewer's name (the platform forbids names in replies)
+//   replyNote             (optional) a platform rule the AI must follow in replies, appended to the reply rules (workflow and "Tạo bản nháp")
 //   workflow              the n8n workflow generated for it (workflows/build.js): id, schedule (cron), collector routes, reviews per run
 module.exports = {
   google: {
@@ -35,6 +37,16 @@ module.exports = {
     workflow: {
       id: 'agodaReviewMonitor1', name: 'Agoda Review Monitor', file: 'agoda-reviews.json', cron: '0 10 * * *',
       businesses: '/agoda/businesses', reviews: '/agoda/reviews', perRun: 5, perRunNote: 'NEW (not yet stored) reviews taken per property per run, newest first; raise it once for a backfill',
+    },
+  },
+  expedia: {
+    name: 'Expedia', logo: '/logos/expedia.svg', color: '#1a3d8f', tint: '#e5ebf8',
+    login: 'npm run login -- expedia', ownerUrl: 'https://apps.expediapartnercentral.com/manageproperty/ManageProperty', autoReply: false, // read-only for now: approved replies are copied and posted by hand
+    noGuestName: true,
+    replyNote: 'Expedia does not allow the name of the guest or any personal details in a reply. Never greet the guest by name and never use the reviewer name: start with "Dear valued guest," (Vietnamese "Kính gửi quý khách,") and ignore the greeting rule that asks for the guest name.',
+    workflow: {
+      id: 'expediaReviewMonitor1', name: 'Expedia Review Monitor', file: 'expedia-reviews.json', cron: '30 11 * * *',
+      businesses: '/expedia/businesses', reviews: '/expedia/reviews', perRun: 5, perRunNote: 'NEW (not yet stored) reviews taken per property per run, newest first; raise it once for a backfill',
     },
   },
 };

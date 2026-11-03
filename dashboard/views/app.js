@@ -77,46 +77,6 @@ function card(r) {
   return c;
 }
 
-// Charts (Chart.js, self-hosted). Colours come from the CSS tokens so the palette lives in one place.
-const charts = {};
-const token = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
-const isoDay = (d) => d.toISOString().slice(0, 10);
-
-function drawChart(id, config) {
-  if (charts[id]) charts[id].destroy();
-  charts[id] = new Chart($(id), config);
-}
-
-function renderCharts(rows) {
-  if (typeof Chart === 'undefined') { $('charts').hidden = true; return; } // library failed to load: the rest of the page still works
-  Chart.defaults.font.family = getComputedStyle(document.body).fontFamily;
-  Chart.defaults.color = token('--muted');
-  Chart.defaults.animation = matchMedia('(prefers-reduced-motion: reduce)').matches ? false : { duration: 300 };
-  const plats = Object.keys(PLATFORMS).filter((p) => rows.some((r) => platOf(r) === p));
-  const colour = Object.fromEntries(Object.entries(PLATFORMS).map(([id, p]) => [id, p.color]));
-  const legend = { position: 'bottom', labels: { boxWidth: 10, boxHeight: 10, usePointStyle: true } };
-
-  const days = Number($('days').value) || 14;
-  const labels = Array.from({ length: days }, (_, i) => isoDay(new Date(Date.now() - (days - 1 - i) * 864e5)));
-  const perDay = (p) => labels.map((d) => rows.filter((r) => platOf(r) === p && r.review_date === d).length);
-  const dated = rows.filter((r) => labels.includes(r.review_date)).length;
-  $('trend').setAttribute('aria-label', `Đánh giá theo ngày trong ${days} ngày qua: ${dated} đánh giá có ngày xác định.`);
-  drawChart('trend', {
-    type: 'bar',
-    data: { labels: labels.map((d) => d.slice(8) + '/' + d.slice(5, 7)), datasets: plats.map((p) => ({ label: platformName(p), data: perDay(p), backgroundColor: colour[p], borderRadius: 2, maxBarThickness: 22 })) },
-    options: { maintainAspectRatio: false, scales: { x: { stacked: true, grid: { display: false }, ticks: { maxTicksLimit: 8 } }, y: { stacked: true, beginAtZero: true, ticks: { precision: 0 }, grid: { color: token('--line') } } }, plugins: { legend } },
-  });
-
-  const stars = [5, 4, 3, 2, 1];
-  const perStar = (p) => stars.map((n) => rows.filter((r) => platOf(r) === p && r.rating === n).length);
-  $('ratings').setAttribute('aria-label', 'Phân bố số sao: ' + stars.map((n) => `${n} sao ${rows.filter((r) => r.rating === n).length}`).join(', ') + '.');
-  drawChart('ratings', {
-    type: 'bar',
-    data: { labels: stars.map((n) => n + ' ★'), datasets: plats.map((p) => ({ label: platformName(p), data: perStar(p), backgroundColor: colour[p], borderRadius: 2, maxBarThickness: 18 })) },
-    options: { indexAxis: 'y', maintainAspectRatio: false, scales: { x: { stacked: true, beginAtZero: true, ticks: { precision: 0 }, grid: { color: token('--line') } }, y: { stacked: true, grid: { display: false } } }, plugins: { legend } },
-  });
-}
-
 function render() {
   renderRuns(); renderBanners();
   const run = Object.values(data.runs).filter(Boolean).sort((a, b) => new Date(b.created_at) - new Date(a.created_at))[0];
@@ -141,7 +101,6 @@ function render() {
     const k = el('div', 'kpi ' + (n ? tone : '')); k.append(el('b', '', n), el('span', '', label)); stats.append(k);
   }
   document.title = (alerts.length ? `(${alerts.length}) ` : '') + 'Cảnh báo đánh giá';
-  renderCharts(rows);
 
   const list = $('list'); list.replaceChildren();
   const all = view === 'alerts' ? alerts : rows;

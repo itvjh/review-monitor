@@ -39,9 +39,6 @@ const serve = (req, res, abs, type, cacheControl) => {
 // A file that lives in views/. Always revalidated, so an edited page shows up at once.
 exports.file = (res, name, req) => serve(req, res, path.join(__dirname, name), TYPES[path.extname(name)], 'no-cache');
 
-// Third-party browser assets from node_modules (self-hosted: works offline and for LAN viewers). Cached for a day.
-exports.vendor = (res, rel, type, req) => serve(req, res, path.join(__dirname, '..', '..', 'node_modules', rel), type, 'public, max-age=86400');
-
 // Errors carrying an HTTP status (HttpError) keep it; anything else is an upstream failure (502).
 // Messages of HttpError are written for people. Anything else (a database or network error) can carry table names or URLs: log it, say little.
 exports.error = (res, e) => {

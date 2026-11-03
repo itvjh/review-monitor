@@ -9,6 +9,7 @@ const reply = require('./controllers/replyController');
 const tripadvisor = require('./controllers/tripadvisorController');
 const agoda = require('./controllers/agodaController');
 const traveloka = require('./controllers/travelokaController');
+const expedia = require('./controllers/expediaController');
 const view = require('./views/json');
 const browser = require('./models/browser');
 const browserController = require('./controllers/browserController');
@@ -31,6 +32,8 @@ const routes = {
   'GET /traveloka/businesses': traveloka.businesses,
   'POST /traveloka/reviews': traveloka.reviews,
   'POST /traveloka/reply': traveloka.reply,
+  'GET /expedia/businesses': expedia.businesses,
+  'POST /expedia/reviews': expedia.reviews,
 };
 
 // Reads the body with a size and time limit; a client that stalls or floods is dropped.

@@ -8,6 +8,7 @@ const http = require('http');
 const path = require('path');
 
 const root = path.join(__dirname, '..');
+const cfg = require('../collector/config');
 const SERVICES = [
   { name: 'collector', cmd: 'node', args: ['server.js'], cwd: path.join(root, 'collector'), health: 'http://127.0.0.1:3010/health', open: 'http://127.0.0.1:3010' },
   { name: 'dashboard', cmd: 'node', args: ['dashboard/server.js'], cwd: root, health: 'http://127.0.0.1:3020/api/me', open: 'http://127.0.0.1:3020' },
@@ -24,6 +25,18 @@ const kill = (child) => { try { execSync(`taskkill /pid ${child.pid} /T /F`, { s
 
 const children = new Map();
 let stopping = false;
+
+// The tool's own Chrome: BROWSER_MODE=personal with CHROME_USER_DATA_DIR set means a separate Chrome instance and profile with remote debugging on,
+// so the collector never opens tabs in the user's own Chrome profiles. Started detached and left running when this script stops: it holds the site logins.
+async function ensureBotChrome() {
+  if (cfg.BROWSER_MODE !== 'personal' || !process.env.CHROME_USER_DATA_DIR) return;
+  const health = `http://127.0.0.1:${cfg.CHROME_DEBUG_PORT}/json/version`;
+  if (await isUp(health)) return console.log('[chrome] Chrome riêng của tool đã chạy sẵn, bỏ qua.');
+  console.log('[chrome] đang mở Chrome riêng của tool...');
+  spawn(cfg.CHROME_PATH, [`--user-data-dir=${cfg.CHROME_USER_DATA_DIR}`, `--remote-debugging-port=${cfg.CHROME_DEBUG_PORT}`, '--no-first-run', '--no-default-browser-check'], { detached: true, stdio: 'ignore' }).unref();
+  for (let i = 0; i < 20 && !(await isUp(health)); i++) await new Promise((r) => setTimeout(r, 1000));
+  console.log((await isUp(health)) ? '[chrome] sẵn sàng. Đăng nhập các nền tảng trong cửa sổ Chrome này (một lần).' : '[chrome] CHƯA phản hồi. Kiểm tra CHROME_PATH trong .env.');
+}
 
 function launch(svc) {
   const child = spawn(svc.cmd, svc.args, { cwd: svc.cwd, shell: Boolean(svc.shell), stdio: ['ignore', 'pipe', 'pipe'], env: process.env });
@@ -44,6 +57,7 @@ async function waitUp(svc, seconds) {
 }
 
 (async () => {
+  await ensureBotChrome();
   const started = [];
   for (const svc of SERVICES) {
     if (await isUp(svc.health)) { console.log(`[${svc.name}] đã chạy sẵn, bỏ qua.`); continue; }

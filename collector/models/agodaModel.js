@@ -18,8 +18,10 @@ const BLOCKED = /Access is temporarily restricted|Access Denied|unusual traffic/
 const pause = (page) => page.waitForTimeout(1500 + Math.floor(Math.random() * 1000)); // be gentle: a few seconds between pages
 
 async function checkSession(page) {
-  const text = await visibleText(page);
-  if (BLOCKED.test(text) || !text.trim()) {
+  let text = await visibleText(page);
+  if (!text.trim()) { await page.waitForTimeout(3000); text = await visibleText(page); } // an empty page is a page still loading (or a dead tab), not proof of a block
+  if (!BLOCKED.test(text) && !text.trim()) throw new CodedError('NETWORK_ERROR', 'Trang Agoda trống, thử lại.'); // retried by browser.run, never starts the 6 h pause
+  if (BLOCKED.test(text)) {
     cooldown.trip('agoda');
     throw new CodedError('AUTH_REQUIRED', 'Agoda đang chặn truy cập. Hệ thống tạm dừng vài giờ, không thử lại liên tục.');
   }

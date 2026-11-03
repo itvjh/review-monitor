@@ -55,7 +55,10 @@ node('Config', 'set', 3.4, {
       set('systemPrompt', `${read('prompts', 'review-analysis.txt')}
 
 REPLY RULES (for reply_draft)
-${fs.readFileSync(path.join(__dirname, '..', 'config', 'prompts', 'reply-rules.txt'), 'utf8').trim()}`),
+${fs.readFileSync(path.join(__dirname, '..', 'config', 'prompts', 'reply-rules.txt'), 'utf8').trim()}${REGISTRY[PLATFORM].replyNote ? `
+
+PLATFORM RULE (overrides the rules above)
+${REGISTRY[PLATFORM].replyNote}` : ''}`),
       set('startedAt', '={{ $now.toISO() }}'),
     ],
   },
@@ -112,7 +115,7 @@ node('AI Analysis', 'httpRequest', 4.2, {
   ...headerAuth,
   sendBody: true,
   specifyBody: 'json',
-  jsonBody: `={{ { systemInstruction: { parts: [{ text: ${CFG}.systemPrompt }] }, contents: [{ role: 'user', parts: [{ text: 'Business:\\n' + ${RL}.business_name + '\\n\\nRating:\\n' + ${RL}.rating + '/5\\n\\nReviewer:\\n' + ${RL}.reviewer_name + '\\n\\nReview:\\n' + (${RL}.review_text || '(no text)') + '\\n\\nExisting owner response:\\n' + (${RL}.owner_reply || '(none)') + '\\n\\nReturn according to the required JSON schema.' }] }], generationConfig: { responseMimeType: 'application/json', temperature: 0 } } }}`,
+  jsonBody: `={{ { systemInstruction: { parts: [{ text: ${CFG}.systemPrompt }] }, contents: [{ role: 'user', parts: [{ text: 'Business:\\n' + ${RL}.business_name + '\\n\\nRating:\\n' + ${RL}.rating + '/5\\n\\nReviewer:\\n' + ${REGISTRY[PLATFORM].noGuestName ? "'(withheld by the platform: never use any guest name)'" : `${RL}.reviewer_name`} + '\\n\\nReview:\\n' + (${RL}.review_text || '(no text)') + '\\n\\nExisting owner response:\\n' + (${RL}.owner_reply || '(none)') + '\\n\\nReturn according to the required JSON schema.' }] }], generationConfig: { responseMimeType: 'application/json', temperature: 0 } } }}`,
   options: { timeout: 60000 },
 }, { credentials: GEM, ...retry });
 node('Validate AI', 'code', 2, codeFile('validate-ai', 'runOnceForEachItem'));

@@ -1,0 +1,41 @@
+// Pure helpers for Expedia Partner Central (no browser): one review card's text -> a record.
+const { starsFromScore } = require('./agodaParse');
+
+const MONTHS = { jan: 1, feb: 2, mar: 3, apr: 4, may: 5, jun: 6, jul: 7, aug: 8, sep: 9, oct: 10, nov: 11, dec: 12 };
+const NOISE = /^(Dịch|Hiển thị thêm|Hiển thị ít hơn|Phản hồi|Chỉnh sửa|Ảnh thu nhỏ của hình .+)$/; // buttons and image captions inside a card
+const REPLY_HEAD = /^(.+) vào ([A-Z][a-z]{2}) (\d{1,2}), (\d{4})$/; // "Sontra Sea Hotel vào Oct 29, 2026"
+
+// "Oct 28, 2026" -> "2026-10-28"
+exports.parseDate = (text) => {
+  const m = String(text || '').match(/([A-Za-z]{3})[a-z]*\.? (\d{1,2}), (\d{4})/);
+  return m && MONTHS[m[1].toLowerCase()] ? `${m[3]}-${String(MONTHS[m[1].toLowerCase()]).padStart(2, '0')}-${m[2].padStart(2, '0')}` : null;
+};
+
+exports.starsFromScore = starsFromScore;
+
+// The property id of a "ManageProperty" row link: ".../supply/home?htid=76784107" -> "76784107".
+exports.propertyIdOf = (href) => (String(href || '').match(/[?&]htid=(\d+)/) || [])[1] || '';
+
+// `lines` = the card's visible text, one entry per line:
+//   (initial) / (initial.) / guest name / "Mã đặt phòng N" / stay dates / source / "10/10" / "Gửi vào Oct 28, 2026" / review text...
+//   then, when answered: (initial) / (initial.) / "<Property> vào Oct 29, 2026" / reply text...
+// -> { name, bookingId, source, score, dateText, text, reply } or null when it is not a review card.
+exports.parseCard = (lines) => {
+  const L = lines.map((l) => String(l).normalize('NFC').replace(/\s+/g, ' ').trim()).filter((l) => l && !NOISE.test(l));
+  const booking = L.findIndex((l) => /^Mã đặt phòng \d+$/.test(l));
+  const score = L.findIndex((l) => /^\d+(?:[.,]\d+)?\/10$/.test(l));
+  const sent = L.findIndex((l) => /^Gửi vào /.test(l));
+  if (booking < 1 || score < booking || sent < score) return null;
+  let head = L.findIndex((l, i) => i > sent && REPLY_HEAD.test(l) && L[i - 1] && /^.\.$/.test(L[i - 1]));
+  if (head < 0) head = L.length;
+  const initials = head < L.length ? 2 : 0; // the avatar letters just before the reply header belong to the reply, not the review
+  return {
+    name: L[booking - 1],
+    bookingId: L[booking].replace(/\D/g, ''),
+    source: L[score - 1] || '',
+    score: Number(L[score].split('/')[0].replace(',', '.')),
+    dateText: L[sent].replace(/^Gửi vào /, ''),
+    text: L.slice(sent + 1, head - initials).join('\n'),
+    reply: head < L.length ? L.slice(head + 1).join('\n') : '',
+  };
+};

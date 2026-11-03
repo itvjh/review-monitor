@@ -6,6 +6,7 @@ const DISCOVER = {
   tripadvisor: require('../models/tripadvisorModel').listBusinesses,
   agoda: require('../models/agodaModel').listBusinesses,
   traveloka: require('../models/travelokaModel').listBusinesses,
+  expedia: require('../models/expediaModel').listBusinesses,
 };
 exports.index = (req, res) => view.ok(res, { sources: Directory.snapshot() });
 exports.refresh = async (req, res, body) => {
