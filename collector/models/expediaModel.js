@@ -1,10 +1,12 @@
-// Expedia Partner Central (Expedia, Hotels.com and Vrbo guest reviews): property list and review reader. Read-only; no reply poster yet.
+// Expedia Partner Central: property list and review reader; session recovery shared with the reply poster.
 const Directory = require('./businessDirectory');
 const { CodedError, clean } = require('./errors');
 const cooldown = require('./cooldown');
 const { visibleText } = require('./util');
 const { hashReview } = require('./reviewUtils');
 const { parseCard, parseDate, propertyIdOf, starsFromScore } = require('./expediaParse');
+const { autoLogin, loginOrigin } = require('./expediaLogin');
+const { isMfaPage } = require('./expediaEmailMfa');
 
 const PORTAL = 'https://apps.expediapartnercentral.com';
 exports.LIST_URL = `${PORTAL}/manageproperty/ManageProperty`;
@@ -25,16 +27,31 @@ async function checkSession(page) {
     throw new CodedError('AUTH_REQUIRED', 'Expedia yêu cầu xác minh hoặc chặn truy cập. Hệ thống tạm dừng vài giờ, không thử lại liên tục.');
   }
   const url = new URL(page.url());
-  if (!/(^|\.)expediapartnercentral\.com$/.test(url.hostname) || /logon|login|signin|sso|identity/i.test(url.pathname) || await count(page.locator('input[type=password]'))) {
+  if (!/(^|\.)expediapartnercentral\.com$/.test(url.hostname) || /logon|login|signin|sso|identity|mfa|challenge|verification/i.test(url.pathname) || await count(page.locator('input[type=password]'))) {
     throw new CodedError('AUTH_REQUIRED', 'Chưa đăng nhập Expedia: chạy npm run login -- expedia');
   }
   if (!text.trim()) throw new CodedError('NETWORK_ERROR', 'Trang Expedia trống, thử lại.');
 }
 exports.checkSession = checkSession;
 
+async function openAuthenticated(page, url, ready) {
+  await page.goto(url, { waitUntil: 'domcontentloaded' });
+  // Expired sessions redirect asynchronously. Recover once, then reopen the requested property.
+  for (let i = 0; i < 60; i++) {
+    if (loginOrigin(page.url()) || isMfaPage(page.url())) {
+      if (await autoLogin(page)) { await page.goto(url, { waitUntil: 'domcontentloaded' }); return; }
+      await checkSession(page);
+      return;
+    }
+    if (await count(page.locator(ready))) return;
+    await page.waitForTimeout(500);
+  }
+  await checkSession(page);
+}
+
 exports.listBusinesses = async (page) => {
   cooldown.check('expedia', 'Expedia');
-  await page.goto(exports.LIST_URL, { waitUntil: 'domcontentloaded' });
+  await openAuthenticated(page, exports.LIST_URL, 'li a.landing-page');
   try { await page.waitForSelector('li a.landing-page', { timeout: 30000 }); } catch (e) {
     await checkSession(page);
     throw new CodedError('SELECTOR_CHANGED', 'không thấy danh sách nơi lưu trú trên Expedia Partner Central');
@@ -55,12 +72,19 @@ exports.listBusinesses = async (page) => {
 // Opens a property's reviews with the "needs a reply" filter cleared. -> false when it has none.
 exports.openReviews = async (page, propertyId) => {
   cooldown.check('expedia', 'Expedia');
-  await page.goto(exports.reviewsUrl(propertyId), { waitUntil: 'domcontentloaded' });
+  await openAuthenticated(page, exports.reviewsUrl(propertyId), CARD);
   const chip = page.getByRole('button', { name: FILTER_CHIP });
   for (let i = 0; i < 60 && !await count(page.locator(CARD)) && !await count(chip); i++) await page.waitForTimeout(500);
+  // The empty "needs a reply" card can appear before its filter button hydrates.
+  if (!await count(chip) && /không có nhận xét nào chờ quý vị hồi âm/i.test(await visibleText(page))) {
+    await chip.first().waitFor({ state: 'visible', timeout: 8000 }).catch(() => {});
+  }
   if (await count(chip)) {
-    await chip.first().click();
-    for (let i = 0; i < 40 && await count(chip); i++) await page.waitForTimeout(500);
+    for (let attempt = 0; attempt < 3 && await count(chip); attempt++) {
+      await chip.first().click({ timeout: 8000 });
+      for (let i = 0; i < 20 && await count(chip); i++) await page.waitForTimeout(500);
+    }
+    if (await count(chip)) throw new CodedError('SELECTOR_CHANGED', 'Không bỏ được bộ lọc Cần phản hồi trên Expedia.');
     await page.waitForTimeout(2500); // the list reloads without the filter
   }
   for (let i = 0; i < 30 && !await count(page.locator(CARD)); i++) await page.waitForTimeout(500);

@@ -22,18 +22,21 @@ async function checkSession(page) {
 exports.checkSession = checkSession;
 const LOGIN_PATH = /login|sign-in|signin/i;
 let loginFailedAt = 0; // a failed auto-login is not retried for 10 minutes: repeated wrong attempts can lock the account
+// A person looks at the page before every click: a random 1.5-4 s pause (page.waitForTimeout), never an instant click right after the page appears.
+const think = (page, min = 1500, max = 4000) => page.waitForTimeout(min + Math.floor(Math.random() * (max - min)));
 const leftLogin = (page, timeout) => page.waitForURL((url) => !LOGIN_PATH.test(url.pathname), { timeout }).then(() => true, () => false);
 // "Sign in with Google": the account chooser may open in a popup. An account is picked only when exactly one is offered; a password, 2-step prompt or captcha is left to the person.
 async function googleLogin(page) {
   const google = page.getByText(/Sign in with Google/i).first();
   if (!await google.count()) return false;
   const popup = page.context().waitForEvent('page', { timeout: 5000 }).catch(() => null);
+  await think(page);
   await google.click();
   const target = await popup || page;
   try {
     const accounts = target.locator('[data-identifier]');
     for (let i = 0; i < 20 && !await accounts.count() && LOGIN_PATH.test(new URL(page.url()).pathname); i++) await page.waitForTimeout(500);
-    if (await accounts.count() === 1) await accounts.click();
+    if (await accounts.count() === 1) { await think(page, 1000, 2500); await accounts.click(); }
   } catch { /* the popup closed by itself: the sign-in went through, or it did not and the check below says so */ }
   return leftLogin(page, 30000);
 }
@@ -45,6 +48,7 @@ async function autoLogin(page) {
   for (let i = 0; i < 10 && !await filled(); i++) await page.waitForTimeout(500);
   if (!await filled() || await button.count() !== 1) return false;
   for (let attempt = 0; attempt < 2 && await button.count() === 1; attempt++) {
+    await think(page);
     await button.click();
     if (await leftLogin(page, 15000)) return true;
   }
@@ -103,11 +107,31 @@ async function waitReviews(page) {
   await checkSession(page);
   throw new CodedError('SELECTOR_CHANGED', 'Không thấy thẻ đánh giá Traveloka.');
 }
+// Opens every collapsed review. Clicked inside the page in one go: a Playwright click on each "Xem thêm" waited up to 30 s for a link that never became
+// "stable" (the cards keep re-rendering). Left collapsed, a review would be read without its full text and get another identity, so give up loudly.
 async function expandReviews(page) {
-  for (const card of await page.locator('.reviewContent__customer').all()) {
-    const more = card.getByText('Xem thêm', { exact: true });
-    if (await more.count() === 1 && await more.isVisible()) await more.click();
+  for (let pass = 0; pass < 4; pass++) {
+    const left = await page.$$eval('.reviewContent__customer', (cards) => {
+      const links = cards.flatMap((c) => [...c.querySelectorAll('*')].filter((e) => !e.children.length && e.textContent.trim() === 'Xem thêm'));
+      links.forEach((e) => e.click());
+      return links.length;
+    });
+    if (!left) return;
+    await page.waitForTimeout(600);
   }
+  throw new CodedError('SELECTOR_CHANGED', 'Không mở rộng được nội dung một đánh giá Traveloka (nút "Xem thêm").');
+}
+// Picks `label` in one of the page's dropdowns. The list sometimes closes again right after it opens, which made the click wait 30 s for nothing:
+// give each try 8 s, close the list and open it again, three tries at most.
+async function choose(page, box, label, failure) {
+  const shown = async () => (await box.locator('.select-placeholder').innerText()).trim();
+  for (let attempt = 0; attempt < 3 && await shown() !== label; attempt++) {
+    await box.locator('.select-control').click();
+    try { await page.getByText(label, { exact: true }).click({ timeout: 8000 }); }
+    catch { await page.keyboard.press('Escape'); await page.waitForTimeout(1000); }
+    await page.waitForTimeout(500);
+  }
+  if (await shown() !== label) throw new CodedError('SELECTOR_CHANGED', failure);
 }
 exports.openReviews = async (page, id) => {
   await openProperties(page);
@@ -123,19 +147,16 @@ exports.openReviews = async (page, id) => {
   await exports.verifyProperty(page, id);
   await page.goto(REVIEWS_URL, { waitUntil: 'domcontentloaded' });
   const filter = page.locator('input[name="filter,type"]').locator('..');
-  try { await filter.locator('.select-placeholder').waitFor({ state: 'visible' }); }
-  catch { await checkSession(page); throw new CodedError('SELECTOR_CHANGED', 'Không thấy bộ lọc Traveloka.'); }
-  if ((await filter.locator('.select-placeholder').innerText()).trim() !== 'Tất cả đánh giá') {
-    await filter.locator('.select-control').click();
-    await page.getByText('Tất cả đánh giá', { exact: true }).click();
+  try { await filter.locator('.select-placeholder').waitFor({ state: 'visible', timeout: 20000 }); }
+  catch { // the page sometimes stays blank for a property: one reload before giving up
+    await checkSession(page);
+    await page.goto(REVIEWS_URL, { waitUntil: 'domcontentloaded' });
+    try { await filter.locator('.select-placeholder').waitFor({ state: 'visible', timeout: 30000 }); }
+    catch { await checkSession(page); throw new CodedError('SELECTOR_CHANGED', 'Không thấy bộ lọc Traveloka.'); }
   }
-  if ((await filter.locator('.select-placeholder').innerText()).trim() !== 'Tất cả đánh giá') throw new CodedError('SELECTOR_CHANGED', 'Không đặt được bộ lọc tất cả đánh giá.');
+  await choose(page, filter, 'Tất cả đánh giá', 'Không đặt được bộ lọc tất cả đánh giá.');
   const sort = page.locator('input[name="filter,sort"]').locator('..');
-  if ((await sort.locator('.select-placeholder').innerText()).trim() !== 'Mới nhất') {
-    await sort.locator('.select-control').click();
-    await page.getByText('Mới nhất', { exact: true }).click();
-  }
-  if ((await sort.locator('.select-placeholder').innerText()).trim() !== 'Mới nhất') throw new CodedError('SELECTOR_CHANGED', 'Không đặt được thứ tự mới nhất.');
+  await choose(page, sort, 'Mới nhất', 'Không đặt được thứ tự mới nhất.');
   // Filtering replaces the default unanswered feed asynchronously.
   await page.waitForTimeout(2000);
   await exports.verifyProperty(page, id);

@@ -7,6 +7,7 @@ const { visibleText } = require('./util');
 const cooldown = require('./cooldown');
 const { hashReview } = require('./reviewUtils');
 const { parseScore, starsFromScore, bidOf, parseReviewedDate } = require('./agodaParse');
+const { loginPage, autoLogin } = require('./agodaLogin');
 
 const PORTAL = 'https://portal.agoda.com/mldc/en-us/app';
 exports.PORTAL = PORTAL;
@@ -29,9 +30,21 @@ async function checkSession(page) {
 }
 exports.checkSession = checkSession;
 
+async function openAuthenticated(page, url, ready) {
+  await page.goto(url, { waitUntil: 'domcontentloaded' });
+  for (let i = 0; i < 40; i++) {
+    if (loginPage(page.url())) {
+      if (await autoLogin(page)) await page.goto(url, { waitUntil: 'domcontentloaded' });
+      return;
+    }
+    if (await page.locator(ready).count().catch(() => 0)) return;
+    await page.waitForTimeout(500);
+  }
+}
+
 exports.listBusinesses = async (page) => {
   cooldown.check('agoda', 'Agoda');
-  await page.goto(`${PORTAL}/iam/propertysearch`, { waitUntil: 'domcontentloaded' });
+  await openAuthenticated(page, `${PORTAL}/iam/propertysearch`, '[data-testid="property-search-table-row"]');
   try { await page.waitForSelector('[data-testid="property-search-table-row"]', { timeout: 30000 }); } catch (e) {
     await checkSession(page);
     throw new CodedError('SELECTOR_CHANGED', 'không thấy danh sách cơ sở trên Agoda Partner Portal');
@@ -96,12 +109,16 @@ exports.nextPage = async (page) => {
 // Opens a property's reviews. -> false when it has none.
 exports.openReviews = async (page, propertyId) => {
   cooldown.check('agoda', 'Agoda');
-  await page.goto(exports.reviewsUrl(propertyId), { waitUntil: 'domcontentloaded' });
-  try { await page.waitForSelector(CARD, { timeout: 30000 }); } catch (e) {
-    await checkSession(page);
-    if (/Based on 0 reviews|No reviews/i.test((await page.locator('body').innerText()).normalize('NFC'))) return false;
-    throw new CodedError('SELECTOR_CHANGED', 'không thấy danh sách đánh giá trên Agoda');
+  // The first property of a crawl sometimes shows no reviews for 30 s (cold portal): one reload before giving up.
+  let shown = false;
+  for (let attempt = 0; attempt < 2 && !shown; attempt++) {
+    await openAuthenticated(page, exports.reviewsUrl(propertyId), CARD);
+    try { await page.waitForSelector(CARD, { timeout: attempt ? 30000 : 20000 }); shown = true; } catch (e) {
+      await checkSession(page);
+      if (/Based on 0 reviews|No reviews/i.test((await page.locator('body').innerText()).normalize('NFC'))) return false;
+    }
   }
+  if (!shown) throw new CodedError('SELECTOR_CHANGED', 'không thấy danh sách đánh giá trên Agoda');
   await page.waitForTimeout(1500);
   return true;
 };
